@@ -1,0 +1,35 @@
+name: mishwar_rider
+description: "تطبيق مشوار للراكب - Flutter (Android + iOS)"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+  cupertino_icons: ^1.0.8
+  # Firebase
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.0
+  firebase_database: ^12.0.0
+  # الخرائط والموقع (حسب دليل GPS)
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+  http: ^1.2.2
+  url_launcher: ^6.3.1
+  share_plus: ^11.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
