@@ -28,6 +28,7 @@ class Ride {
   final int? completedAt;
   final double commission;
   final bool riderRated;
+  final String? cancelledBy;
 
   Ride({
     required this.id,
@@ -56,6 +57,7 @@ class Ride {
     this.completedAt,
     this.commission = 0,
     this.riderRated = false,
+    this.cancelledBy,
   });
 
   double get finalPrice => agreedPrice ?? price;
@@ -87,5 +89,6 @@ class Ride {
         completedAt: m['completedAt'] is int ? m['completedAt'] as int : null,
         commission: numD(m['commission']),
         riderRated: m['riderRated'] == true,
+        cancelledBy: m['cancelledBy']?.toString(),
       );
 }

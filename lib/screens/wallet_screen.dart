@@ -92,7 +92,7 @@ class WalletScreen extends StatelessWidget {
             for (final t in tx)
               ListTile(
                 title: Text((t['title'] ?? 'عملية').toString()),
-                subtitle: Text(dateLabel((t['createdAt'] as num?)?.toInt())),
+                subtitle: Text(_transactionDetails(t)),
                 trailing: Text('${numD(t['amount']) >= 0 ? '+' : ''}${numD(t['amount']).toStringAsFixed(0)}',
                     style: TextStyle(fontWeight: FontWeight.bold, color: numD(t['amount']) >= 0 ? AppColors.green : AppColors.red)),
               ),
@@ -101,4 +101,23 @@ class WalletScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// يوضح مصدر الحركة والمرجع المرتبط بها بجانب التاريخ، مع التوافق مع السجلات القديمة.
+String _transactionDetails(Map<String, dynamic> t) {
+  final parts = <String>[dateLabel((t['createdAt'] as num?)?.toInt())];
+  final rawSource = (t['source'] ?? t['type'] ?? t['category'] ?? '').toString().trim();
+  const sourceLabels = <String, String>{
+    'ride': 'رحلة', 'trip': 'رحلة', 'commission': 'عمولة',
+    'topup': 'شحن رصيد', 'wallet_topup': 'شحن رصيد',
+    'refund': 'استرداد', 'transfer': 'تحويل', 'adjustment': 'تسوية إدارية',
+    'cashout': 'سحب أرباح', 'payout': 'صرف أرباح',
+  };
+  if (rawSource.isNotEmpty) parts.add(sourceLabels[rawSource.toLowerCase()] ?? rawSource);
+  final rideId = (t['rideId'] ?? t['ride_id'] ?? '').toString().trim();
+  final reference = (t['reference'] ?? t['referenceId'] ?? t['requestId'] ?? '').toString().trim();
+  if (rideId.isNotEmpty) parts.add('رحلة #${rideId.length > 8 ? rideId.substring(0, 8) : rideId}');
+  else if (reference.isNotEmpty) parts.add('مرجع #${reference.length > 8 ? reference.substring(0, 8) : reference}');
+  return parts.join(' • ');
 }

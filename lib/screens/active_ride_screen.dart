@@ -8,12 +8,14 @@ import '../core/theme.dart';
 import '../core/utils.dart';
 import '../models/ride.dart';
 import '../services/driver_service.dart';
+import '../services/ride_notification_service.dart';
 import '../services/location_service.dart';
 import '../services/routing_service.dart';
 import '../widgets/app_map.dart';
 import '../widgets/common.dart';
 import '../widgets/map_utils.dart';
 import '../widgets/markers.dart';
+import 'ride_chat_screen.dart';
 
 const _blue = Color(0xFF0A78FA);
 
@@ -52,6 +54,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
   @override
   void dispose() {
     LocationPublisher.position.removeListener(_onPos);
+    _code.dispose();
     super.dispose();
   }
 
@@ -66,13 +69,33 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     });
   }
 
-  Future<void> _update(Map<String, Object?> up, {String? state}) async {
+  Future<void> _update(Map<String, Object?> up, {String? state, String? expectedStatus, String? requiredCode}) async {
     setState(() => _busy = true);
     try {
-      await db.child('rides/${widget.rideId}').update(up);
+      final ref = db.child('rides/${widget.rideId}');
+      if (up.containsKey('status')) {
+        final current = asMap((await ref.get()).value);
+        if (current['driverId'] != myUid || current['status'] != expectedStatus ||
+            (requiredCode != null && current['startCode']?.toString() != requiredCode)) {
+          throw StateError('حالة الرحلة تغيرت أو رمز البدء غير صحيح.');
+        }
+        final result = await ref.child('status').runTransaction((Object? value) {
+          if (value?.toString() != expectedStatus) return Transaction.abort();
+          return Transaction.success(up['status']);
+        });
+        if (!result.committed) throw StateError('حالة الرحلة تغيرت من جهاز آخر. حدّث الشاشة.');
+        final metadata = Map<String, Object?>.from(up)..remove('status');
+        if (metadata.isNotEmpty) await ref.update(metadata);
+      } else {
+        await ref.update(up);
+      }
       if (state != null) LocationPublisher.setRide(widget.rideId, state: state);
-    } catch (_) {
-      if (mounted) showSnack(context, 'تعذر تحديث الرحلة. تحقق من الاتصال.', error: true);
+      if (up['status'] != null) {
+        final ride = asMap((await db.child('rides/${widget.rideId}').get()).value);
+        await RideNotificationService.notifyStatus(rideId: widget.rideId, status: up['status'].toString(), riderId: ride['riderId']?.toString(), driverId: myUid);
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, e is StateError ? e.message.toString() : 'تعذر تحديث الرحلة. تحقق من الاتصال.', error: true);
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -81,19 +104,42 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     if (!await confirmDialog(context, 'إنهاء الرحلة', 'هل وصلت إلى الوجهة؟\nالأجرة النهائية: ${money(r.finalPrice)} (نقداً)', yes: 'تأكيد إنهاء الرحلة')) return;
     setState(() => _busy = true);
     try {
-      final pct = await DriverService.commissionPercent();
-      final commission = double.parse((r.finalPrice * pct / 100).toStringAsFixed(2));
+      final pctRaw = await DriverService.commissionPercent();
+      final pct = pctRaw.clamp(0.0, 100.0).toDouble();
+      final rideRef = db.child('rides/${r.id}');
+      final completedAt = DateTime.now().millisecondsSinceEpoch;
+      // Update the state and settlement fields atomically so a completed ride
+      // cannot be left without its completion timestamp or commission.
+      final result = await rideRef.runTransaction((Object? value) {
+        if (value is! Map) return Transaction.abort();
+        final current = Map<String, dynamic>.from(value);
+        if (current['driverId'] != myUid || current['status'] != 'started') {
+          return Transaction.abort();
+        }
+        final fareValue = current['agreedPrice'] ?? current['price'];
+        if (fareValue is! num || !fareValue.isFinite || fareValue <= 0) {
+          return Transaction.abort();
+        }
+        final fare = double.parse(fareValue.toDouble().toStringAsFixed(2));
+        final commission = double.parse((fare * pct / 100).toStringAsFixed(2));
+        current['status'] = 'completed';
+        current['completedAt'] = completedAt;
+        current['commissionPercent'] = pct;
+        current['commission'] = commission;
+        current['finalPrice'] = fare;
+        current['driverNet'] = double.parse((fare - commission).toStringAsFixed(2));
+        return Transaction.success(current);
+      });
+      if (!result.committed) throw StateError('تم تحديث الرحلة من جهاز آخر أو أنها ليست قيد التنفيذ.');
       await db.update({
-        'rides/${r.id}/status': 'completed',
-        'rides/${r.id}/completedAt': ServerValue.timestamp,
-        'rides/${r.id}/commission': commission,
-        'rides/${r.id}/finalPrice': r.finalPrice,
         'driverActive/$myUid': null,
+        'users/${r.riderId}/activeRide': null,
       });
       await db.child('drivers/$myUid/tripsCount').runTransaction((v) => Transaction.success(((v as num?) ?? 0).toInt() + 1));
+      await RideNotificationService.notifyStatus(rideId: r.id, status: 'completed', riderId: r.riderId, driverId: myUid);
       LocationPublisher.setRide(null);
-    } catch (_) {
-      if (mounted) showSnack(context, 'تعذر إنهاء الرحلة', error: true);
+    } catch (e) {
+      if (mounted) showSnack(context, e is StateError ? e.message.toString() : 'تعذر إنهاء الرحلة', error: true);
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -101,11 +147,26 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
   Future<void> _cancel(Ride r) async {
     if (!await confirmDialog(context, 'إلغاء الرحلة', 'هل تريد إلغاء الرحلة؟ قد يؤثر ذلك على تقييمك.', yes: 'نعم، إلغاء')) return;
     try {
-      await db.update({'rides/${r.id}/status': 'cancelled', 'rides/${r.id}/cancelledBy': 'driver', 'rides/${r.id}/cancelledAt': ServerValue.timestamp, 'driverActive/$myUid': null});
+      final ref = db.child('rides/${r.id}');
+      final current = asMap((await ref.get()).value);
+      if (current['driverId'] != myUid || !['accepted', 'arrived'].contains(current['status'])) {
+        throw StateError('لا يمكن إلغاء الرحلة في حالتها الحالية.');
+      }
+      final result = await ref.child('status').runTransaction((Object? value) {
+        if (!['accepted', 'arrived'].contains(value?.toString())) return Transaction.abort();
+        return Transaction.success('cancelled');
+      });
+      if (!result.committed) throw StateError('تم تحديث الرحلة من جهاز آخر.');
+      await ref.update({'cancelledBy': 'driver', 'cancelledAt': ServerValue.timestamp});
+      await db.update({
+        'driverActive/$myUid': null,
+        'users/${r.riderId}/activeRide': null,
+      });
+      await RideNotificationService.notifyStatus(rideId: r.id, status: 'cancelled', riderId: r.riderId, driverId: myUid);
       LocationPublisher.setRide(null);
       if (mounted) Navigator.pop(context);
-    } catch (_) {
-      if (mounted) showSnack(context, 'تعذر الإلغاء', error: true);
+    } catch (e) {
+      if (mounted) showSnack(context, e is StateError ? e.message.toString() : 'تعذر الإلغاء', error: true);
     }
   }
 
@@ -164,11 +225,20 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
               _route = null;
               _lastRoute = DateTime.fromMillisecondsSinceEpoch(0);
               WidgetsBinding.instance.addPostFrameCallback((_) => _onPos());
-              if (r.status == 'accepted' || r.status == 'arrived' || r.status == 'started') LocationPublisher.setRide(r.id, state: r.status);
+              if (r.status == 'accepted' || r.status == 'arrived' || r.status == 'started') {
+                LocationPublisher.setRide(r.id, state: r.status);
+              } else if (r.status == 'completed' || r.status == 'cancelled') {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  LocationPublisher.setRide(null);
+                  db.child('driverActive/$myUid').remove().catchError((_) {});
+                  db.child('users/${r.riderId}/activeRide').remove().catchError((_) {});
+                            });
+              }
             }
             _ride = r;
             if (r.status == 'cancelled') {
-              body = _ended('ألغى الراكب الرحلة', Icons.cancel, AppColors.red, r);
+              body = _ended(r.cancelledBy == 'driver' ? 'ألغى السائق الرحلة' : (r.cancelledBy == 'rider' ? 'ألغيت الرحلة بواسطتك' : 'تم إلغاء الرحلة'), Icons.cancel, AppColors.red, r);
             } else if (r.status == 'completed') {
               body = _completed(r);
             } else {
@@ -284,19 +354,21 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                     InkWell(onTap: () => _launch('tel', r.riderPhone), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: Color(0xFFE9F1F5), shape: BoxShape.circle), child: const Icon(Icons.call, color: AppColors.primary))),
                     const SizedBox(width: 6),
                     InkWell(onTap: () => _launch('sms', r.riderPhone), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: Color(0xFFE9F1F5), shape: BoxShape.circle), child: const Icon(Icons.message, color: AppColors.primary))),
+                    const SizedBox(width: 6),
+                    InkWell(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RideChatScreen(rideId: r.id))), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: Color(0xFFE9F1F5), shape: BoxShape.circle), child: const Icon(Icons.chat_bubble_outline, color: AppColors.primary))),
                   ]),
                   const SizedBox(height: 12),
                   if (r.status == 'accepted') ...[
                     AppButton('ابدأ التوجيه', color: _blue, icon: Icons.navigation, onPressed: () => _navigate(r.pickup.point)),
                     const SizedBox(height: 8),
-                    AppButton('تم الوصول', onPressed: () => _update({'status': 'arrived', 'arrivedAt': ServerValue.timestamp}, state: 'arrived'), busy: _busy),
+                    AppButton('تم الوصول', onPressed: () => _update({'status': 'arrived', 'arrivedAt': ServerValue.timestamp}, state: 'arrived', expectedStatus: 'accepted'), busy: _busy),
                   ],
                   if (r.status == 'arrived') ...[
                     TextField(controller: _code, keyboardType: TextInputType.number, maxLength: 4, decoration: const InputDecoration(labelText: 'رمز الراكب (4 أرقام)', counterText: '', filled: true, fillColor: AppColors.field)),
                     const SizedBox(height: 8),
                     AppButton('بدء الرحلة', busy: _busy, onPressed: () {
                       if (_code.text.trim() != r.startCode) return showSnack(context, 'رمز الراكب غير صحيح', error: true);
-                      _update({'status': 'started', 'startedAt': ServerValue.timestamp}, state: 'started');
+                      _update({'status': 'started', 'startedAt': ServerValue.timestamp}, state: 'started', expectedStatus: 'arrived', requiredCode: _code.text.trim());
                     }),
                   ],
                   if (r.status == 'accepted' || r.status == 'arrived') TextButton(onPressed: () => _cancel(r), child: const Text('إلغاء الرحلة', style: TextStyle(color: AppColors.red))),

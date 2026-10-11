@@ -20,24 +20,53 @@ class _EarningsScreenState extends State<EarningsScreen> {
 
   double _net(Ride r) => r.finalPrice - r.commission;
 
-  Future<void> _payout(double net) async {
-    final c = TextEditingController(text: net.floor().toString());
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('طلب تحويل الأرباح'),
-        content: TextField(controller: c, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ')),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('إرسال'))],
-      ),
-    );
-    final amt = double.tryParse(c.text.trim()) ?? 0;
-    if (ok != true || amt <= 0) return;
+  Future<void> _payout() async {
     try {
+      // Use lifetime completed trips, not the currently selected chart period.
+      final rides = await DriverService.myRides();
+      final lifetimeNet = rides
+          .where((r) => r.status == 'completed' && r.completedAt != null)
+          .fold<double>(0, (sum, r) => sum + _net(r));
+      final requestSnapshot = await db.child('payoutRequests').orderByChild('driverId').equalTo(myUid).get();
+      final requests = asMap(requestSnapshot.value);
+      final reserved = requests.values.map((e) => asMap(e)).where((m) =>
+          m['driverId'] == myUid && ['pending', 'approved', 'paid'].contains(m['status']))
+          .fold<double>(0, (sum, m) => sum + numD(m['amount']));
+      final available = (lifetimeNet - reserved).clamp(0.0, double.infinity).toDouble();
+      if (available < 1) {
+        if (mounted) showSnack(context, 'لا توجد أرباح متاحة للتحويل حالياً', error: true);
+        return;
+      }
+      final c = TextEditingController(text: available.floor().toString());
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('طلب تحويل الأرباح'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('المتاح للتحويل: ${money(available)}'),
+            const SizedBox(height: 8),
+            TextField(controller: c, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'المبلغ')),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('إرسال'))],
+        ),
+      );
+      final amt = double.tryParse(c.text.trim()) ?? 0;
+      c.dispose();
+      if (ok != true) return;
+      if (!amt.isFinite || amt <= 0 || amt > available) {
+        if (mounted) showSnack(context, 'المبلغ يجب أن يكون أكبر من صفر ولا يتجاوز ${money(available)}', error: true);
+        return;
+      }
       final id = db.child('payoutRequests').push().key!;
-      await db.child('payoutRequests/$id').set({'driverId': myUid, 'amount': amt, 'status': 'pending', 'createdAt': ServerValue.timestamp});
+      await db.child('payoutRequests/$id').set({
+        'driverId': myUid,
+        'amount': double.parse(amt.toStringAsFixed(2)),
+        'status': 'pending',
+        'createdAt': ServerValue.timestamp,
+      });
       if (mounted) showSnack(context, 'تم إرسال طلب التحويل للإدارة');
     } catch (_) {
-      if (mounted) showSnack(context, 'تعذر إرسال الطلب', error: true);
+      if (mounted) showSnack(context, 'تعذر حساب الرصيد أو إرسال الطلب. تحقق من اتصالك وصلاحيات Firebase.', error: true);
     }
   }
 
@@ -130,7 +159,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                   ]),
                 ),
                 const SizedBox(height: 14),
-                AppButton('طلب تحويل الأرباح', onPressed: total > 0 ? () => _payout(total) : null),
+                AppButton('طلب تحويل الأرباح', onPressed: done.isNotEmpty ? _payout : null),
               ]),
             );
           },

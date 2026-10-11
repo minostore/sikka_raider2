@@ -9,6 +9,7 @@ import 'auth_driver.dart';
 import 'docs_screen.dart';
 import 'driver_shell.dart';
 import 'pending_screen.dart';
+import 'welcome_onboarding.dart';
 
 Widget _gate() => const DriverGate();
 
@@ -16,7 +17,7 @@ class SplashGate extends StatelessWidget {
   const SplashGate({super.key});
   @override
   Widget build(BuildContext context) => DriverSplash(
-        resolve: () async => FirebaseAuth.instance.currentUser != null ? _gate() : LoginScreen(homeBuilder: _gate),
+        resolve: () async => FirebaseAuth.instance.currentUser != null ? _gate() : SikkaWelcome(homeBuilder: _gate),
       );
 }
 

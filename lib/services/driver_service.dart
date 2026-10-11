@@ -145,7 +145,19 @@ class DriverService {
     required int etaMin,
     required String note,
   }) async {
+    if (!price.isFinite || price <= 0 || etaMin < 0 || etaMin > 240) {
+      throw Exception('تحقق من السعر ووقت الوصول قبل إرسال العرض.');
+    }
+    final rideSnapshot = await db.child('rides/$rideId').get();
+    if (!rideSnapshot.exists) throw Exception('الطلب غير موجود أو انتهت صلاحيته.');
+    final ride = asMap(rideSnapshot.value);
+    if (ride['status'] != 'requested') throw Exception('لم يعد هذا الطلب متاحاً لتقديم العروض.');
+    final expiresAt = (asMap((await db.child('openRequests/$rideId').get()).value)['expiresAt'] as num?)?.toInt();
+    if (expiresAt != null && expiresAt < DateTime.now().millisecondsSinceEpoch) {
+      throw Exception('انتهت صلاحية هذا الطلب.');
+    }
     final p = await profile();
+    if (p['status'] != 'approved') throw Exception('يجب اعتماد حسابك قبل تقديم عروض الرحلات.');
     final r = await ratings();
     final v = asMap(p['vehicle']);
     await db.child('rides/$rideId/offers/$myUid').set({

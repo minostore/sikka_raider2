@@ -136,31 +136,59 @@ class RideService {
   }
 
   static Future<void> acceptOffer(String rideId, Offer o) async {
+    // Claim the ride with a transaction so two offers cannot win simultaneously.
     final code = (1000 + Random().nextInt(9000)).toString();
+    final rideRef = db.child('rides/$rideId');
+    final result = await rideRef.runTransaction((Object? value) {
+      if (value is! Map) return Transaction.abort();
+      final ride = Map<String, dynamic>.from(value);
+      if (ride['status'] != 'requested') return Transaction.abort();
+      final offers = asMap(ride['offers']);
+      final selected = asMap(offers[o.driverId]);
+      if (selected.isEmpty || selected['status'] != 'pending') {
+        return Transaction.abort();
+      }
+      ride['driverId'] = o.driverId;
+      ride['driverName'] = o.name;
+      ride['driverPhone'] = o.phone;
+      ride['vehicle'] = o.vehicle;
+      ride['driverRating'] = o.rating;
+      ride['agreedPrice'] = o.price;
+      ride['startCode'] = code;
+      ride['status'] = 'accepted';
+      ride['acceptedAt'] = DateTime.now().millisecondsSinceEpoch;
+      offers[o.driverId] = {...selected, 'status': 'accepted'};
+      ride['offers'] = offers;
+      return Transaction.success(ride);
+    });
+    if (!result.committed) {
+      throw Exception('تم اختيار سائق آخر أو انتهى الطلب. حدّث الشاشة وحاول مرة أخرى.');
+    }
+    // Update lookup indexes only after the ride has been claimed successfully.
     await db.update({
-      'rides/$rideId/driverId': o.driverId,
-      'rides/$rideId/driverName': o.name,
-      'rides/$rideId/driverPhone': o.phone,
-      'rides/$rideId/vehicle': o.vehicle,
-      'rides/$rideId/driverRating': o.rating,
-      'rides/$rideId/agreedPrice': o.price,
-      'rides/$rideId/startCode': code,
-      'rides/$rideId/status': 'accepted',
-      'rides/$rideId/acceptedAt': ServerValue.timestamp,
-      'rides/$rideId/offers/${o.driverId}/status': 'accepted',
       'driverActive/${o.driverId}': rideId,
       'openRequests/$rideId': null,
     });
   }
 
   static Future<void> cancel(String rideId, {String? driverId}) async {
+    final ref = db.child('rides/$rideId');
+    final rideSnapshot = await ref.get();
+    final ride = asMap(rideSnapshot.value);
+    if (ride['riderId'] != uid) throw Exception('لا تملك صلاحية إلغاء هذه الرحلة.');
+    final result = await ref.child('status').runTransaction((Object? value) {
+      if (!['requested', 'accepted', 'arrived'].contains(value?.toString())) return Transaction.abort();
+      return Transaction.success('cancelled');
+    });
+    if (!result.committed) {
+      throw Exception('لا يمكن إلغاء الرحلة بعد بدء المشوار أو انتهاء الطلب. حدّث الشاشة.');
+    }
+    await ref.update({'cancelledBy': 'rider', 'cancelledAt': ServerValue.timestamp});
+    final actualDriver = driverId ?? ride['driverId']?.toString();
     await db.update({
-      'rides/$rideId/status': 'cancelled',
-      'rides/$rideId/cancelledBy': 'rider',
-      'rides/$rideId/cancelledAt': ServerValue.timestamp,
       'openRequests/$rideId': null,
       'users/$uid/activeRide': null,
-      if (driverId != null) 'driverActive/$driverId': null,
+      if (actualDriver != null && actualDriver.isNotEmpty) 'driverActive/$actualDriver': null,
     });
   }
 
