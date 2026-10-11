@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -59,19 +61,39 @@ class _DocsScreenState extends State<DocsScreen> {
     try {
       // الرفع إلى Cloudflare R2 عبر خدمة sikka-uploads (عنوانها يُضبط من لوحة التحكم > الإعدادات)
       final cfg = (await FirebaseDatabase.instance.ref('settings/uploadApi').get()).value?.toString();
-      final base = (cfg != null && cfg.isNotEmpty) ? cfg : _defaultUploadApi;
+      final base = (cfg != null && cfg.trim().isNotEmpty) ? cfg.trim() : _defaultUploadApi;
       final token = await FirebaseAuth.instance.currentUser!.getIdToken();
+      if (token == null || token.isEmpty) throw Exception('تعذر الحصول على رمز تسجيل الدخول. سجل الدخول مرة أخرى.');
       final bytes = await x.readAsBytes();
       final type = (x.mimeType != null && x.mimeType!.startsWith('image/')) ? x.mimeType! : 'image/jpeg';
-      final res = await http
-          .put(Uri.parse('${base.replaceAll(RegExp(r'/+$'), '')}/upload/$key'), headers: {'Authorization': 'Bearer $token', 'Content-Type': type}, body: bytes)
-          .timeout(const Duration(seconds: 90));
-      if (res.statusCode != 200) throw Exception('upload-failed-${res.statusCode}');
-      await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set({'path': 'driverDocs/$_uid/$key', 'status': 'pending', 'uploadedAt': ServerValue.timestamp});
-      setState(() => _docs[key] = {'path': 'driverDocs/$_uid/$key', 'status': 'pending'});
-    } catch (e) {
-      final notSet = e.toString().contains('upload-api-not-set');
-      if (mounted) showSnack(context, notSet ? 'خدمة رفع الملفات غير مضبوطة بعد. اطلب من الإدارة ضبطها من لوحة التحكم.' : 'تعذر رفع الملف. تحقق من الإنترنت وحاول مرة أخرى.', error: true);
+      final endpoint = Uri.parse('${base.trim().replaceAll(RegExp(r'/+$'), '')}/upload/$key');
+      final res = await http.put(endpoint,
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': type},
+          body: bytes).timeout(const Duration(seconds: 90));
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        final detail = res.body.trim().replaceAll(RegExp(r'\s+'), ' ');
+        throw HttpException('HTTP ${res.statusCode}${detail.isEmpty ? '' : ': ${detail.substring(0, detail.length > 180 ? 180 : detail.length)}'}');
+      }
+      String? returnedUrl;
+      try {
+        final payload = jsonDecode(res.body);
+        if (payload is Map) {
+          returnedUrl = (payload['url'] ?? payload['publicUrl'] ?? payload['downloadUrl'])?.toString();
+        }
+      } catch (_) {}
+      final path = 'driverDocs/$_uid/$key';
+      final doc = <String, dynamic>{'path': path, 'status': 'pending', 'uploadedAt': ServerValue.timestamp};
+      if (returnedUrl != null && returnedUrl.startsWith('https://')) doc['url'] = returnedUrl;
+      await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set(doc);
+      setState(() => _docs[key] = {'path': path, if (returnedUrl != null) 'url': returnedUrl, 'status': 'pending'});
+    } on SocketException {
+      if (mounted) showSnack(context, 'تعذر الوصول إلى خدمة الرفع. تحقق من عنوان Worker واتصال الخادم.', error: true);
+    } on FormatException {
+      if (mounted) showSnack(context, 'عنوان خدمة الرفع غير صحيح. راجع إعداد uploadApi.', error: true);
+    } on HttpException catch (e) {
+      if (mounted) showSnack(context, 'فشل الرفع: ${e.message}', error: true);
+    } on Exception catch (e) {
+      if (mounted) showSnack(context, e.toString().contains('TimeoutException') ? 'انتهت مهلة رفع الملف. حاول مرة أخرى.' : 'تعذر رفع الملف: ${e.toString().replaceFirst('Exception: ', '')}', error: true);
     }
     if (mounted) setState(() => _uploading.remove(key));
   }
