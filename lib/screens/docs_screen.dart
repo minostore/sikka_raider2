@@ -1,7 +1,6 @@
-import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/theme.dart';
@@ -10,6 +9,8 @@ import '../services/auth_service.dart';
 import '../widgets/common.dart';
 import 'auth_driver.dart';
 import 'splash_gate.dart';
+
+const _defaultUploadApi = 'https://sikka.mohamedmini2006.workers.dev'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
 
 const docLabels = {
   'license': 'رخصة القيادة',
@@ -46,18 +47,31 @@ class _DocsScreenState extends State<DocsScreen> {
   bool _busy = false;
   late int _step = (_veh['plate'] ?? '').toString().isNotEmpty ? 3 : 2;
 
+  bool _has(String k) {
+    final d = asMap(_docs[k]);
+    return d['path'] != null || d['url'] != null;
+  }
+
   Future<void> _pick(String key) async {
     final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 1600);
     if (x == null) return;
     setState(() => _uploading.add(key));
     try {
-      final ref = FirebaseStorage.instance.ref('driverDocs/$_uid/$key.jpg');
-      await ref.putFile(File(x.path));
-      final url = await ref.getDownloadURL();
-      await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set({'url': url, 'status': 'pending', 'uploadedAt': ServerValue.timestamp});
-      setState(() => _docs[key] = {'url': url, 'status': 'pending'});
+      // الرفع إلى Cloudflare R2 عبر خدمة sikka-uploads (عنوانها يُضبط من لوحة التحكم > الإعدادات)
+      final cfg = (await FirebaseDatabase.instance.ref('settings/uploadApi').get()).value?.toString();
+      final base = (cfg != null && cfg.isNotEmpty) ? cfg : _defaultUploadApi;
+      final token = await FirebaseAuth.instance.currentUser!.getIdToken();
+      final bytes = await x.readAsBytes();
+      final type = (x.mimeType != null && x.mimeType!.startsWith('image/')) ? x.mimeType! : 'image/jpeg';
+      final res = await http
+          .put(Uri.parse('${base.replaceAll(RegExp(r'/+$'), '')}/upload/$key'), headers: {'Authorization': 'Bearer $token', 'Content-Type': type}, body: bytes)
+          .timeout(const Duration(seconds: 90));
+      if (res.statusCode != 200) throw Exception('upload-failed-${res.statusCode}');
+      await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set({'path': 'driverDocs/$_uid/$key', 'status': 'pending', 'uploadedAt': ServerValue.timestamp});
+      setState(() => _docs[key] = {'path': 'driverDocs/$_uid/$key', 'status': 'pending'});
     } catch (e) {
-      if (mounted) showSnack(context, 'تعذر رفع الملف. تحقق من الإنترنت ومن تفعيل Storage.', error: true);
+      final notSet = e.toString().contains('upload-api-not-set');
+      if (mounted) showSnack(context, notSet ? 'خدمة رفع الملفات غير مضبوطة بعد. اطلب من الإدارة ضبطها من لوحة التحكم.' : 'تعذر رفع الملف. تحقق من الإنترنت وحاول مرة أخرى.', error: true);
     }
     if (mounted) setState(() => _uploading.remove(key));
   }
@@ -75,7 +89,7 @@ class _DocsScreenState extends State<DocsScreen> {
   }
 
   Future<void> _submit() async {
-    final missing = docLabels.keys.where((k) => asMap(_docs[k])['url'] == null);
+    final missing = docLabels.keys.where((k) => !_has(k));
     if (missing.isNotEmpty) return showSnack(context, 'ارفع: ${missing.map((k) => docLabels[k]).join('، ')}', error: true);
     setState(() => _busy = true);
     try {
@@ -109,7 +123,7 @@ class _DocsScreenState extends State<DocsScreen> {
           ])),
           up
               ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-              : d['url'] == null
+              : !_has(k)
                   ? const Icon(Icons.add_circle_outline, color: Colors.grey)
                   : Icon(st == 'rejected' ? Icons.error : Icons.check_circle, color: st == 'rejected' ? AppColors.red : AppColors.green),
         ]),
