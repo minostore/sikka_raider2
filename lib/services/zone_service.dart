@@ -39,12 +39,26 @@ class ZoneService {
       final out = <ServiceZone>[];
       asMap(e.snapshot.value).forEach((id, v) {
         final m = asMap(v);
-        final pts = asMap(m['points']).entries.toList()
-          ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
-        final list = pts.map((p) {
-          final q = asMap(p.value);
-          return LatLng(numD(q['lat']), numD(q['lng']));
-        }).toList();
+        final rawPoints = m['points'];
+        final list = <LatLng>[];
+        if (rawPoints is List) {
+          for (final value in rawPoints) {
+            final q = asMap(value);
+            if (q['lat'] is num && q['lng'] is num) {
+              list.add(LatLng(numD(q['lat']), numD(q['lng'])));
+            }
+          }
+        } else {
+          final pointMap = asMap(rawPoints);
+          final keys = pointMap.keys.toList()
+            ..sort((a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0));
+          for (final key in keys) {
+            final q = asMap(pointMap[key]);
+            if (q['lat'] is num && q['lng'] is num) {
+              list.add(LatLng(numD(q['lat']), numD(q['lng'])));
+            }
+          }
+        }
         out.add(ServiceZone(id, (m['name'] ?? '').toString(), list, m['active'] != false, numD(m['surgePercent'])));
       });
       zones.value = out;

@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'screens/splash_gate.dart';
+import 'services/zone_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,7 @@ Future<void> main() async {
   } catch (e) {
     initError = e;
   }
+  if (initError == null) ZoneService.start();
   runApp(MishwarDriverApp(initError: initError));
 }
 

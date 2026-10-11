@@ -8,8 +8,8 @@ class AppConfig {
   static const countryCode = '+20';
   static const packageName = 'com.sikka.rider';
   static const userAgent = 'MishwarApp/1.0 ($packageName)';
-  // مصدر بلاطات الخرائط: خادم OSM العام للتجربة فقط. للإنتاج استخدم مزوداً مناسباً.
-  static const tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  // مصدر بلاطات OpenStreetMap. يجب الالتزام بسياسة الاستخدام وإظهار الإسناد.
+  static const tileUrl = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
   static const defaultCenter = LatLng(30.0444, 31.2357);
   static const nearbyRadiusKm = 8.0;
 }

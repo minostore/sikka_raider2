@@ -4,6 +4,8 @@ import 'package:firebase_database/firebase_database.dart';
 import '../core/utils.dart';
 import '../models/place.dart';
 import '../models/ride.dart';
+import '../services/zone_service.dart';
+import 'package:latlong2/latlong.dart';
 
 class Offer {
   final String driverId;
@@ -64,6 +66,45 @@ class RideService {
   }) async {
     if (await activeRideId() != null) {
       throw Exception('لديك رحلة جارية بالفعل.');
+    }
+    // اقرأ المناطق مباشرة من Firebase لضمان التحقق حتى لو لم يكتمل تحديث المستمع الحي.
+    try {
+      final zoneSnapshot = await db.child('zones').get();
+      final zoneMap = asMap(zoneSnapshot.value);
+      final activeZones = <ServiceZone>[];
+      zoneMap.forEach((id, value) {
+        final m = asMap(value);
+        if (m['active'] == false) return;
+        final rawPoints = m['points'];
+        final pts = <LatLng>[];
+        if (rawPoints is List) {
+          for (final item in rawPoints) {
+            final point = asMap(item);
+            if (point['lat'] is num && point['lng'] is num) {
+              pts.add(LatLng((point['lat'] as num).toDouble(), (point['lng'] as num).toDouble()));
+            }
+          }
+        } else {
+          final pointMap = asMap(rawPoints);
+          final keys = pointMap.keys.toList()..sort((a, b) => int.tryParse(a)?.compareTo(int.tryParse(b) ?? 0) ?? 0);
+          for (final key in keys) {
+            final point = asMap(pointMap[key]);
+            if (point['lat'] is num && point['lng'] is num) {
+              pts.add(LatLng((point['lat'] as num).toDouble(), (point['lng'] as num).toDouble()));
+            }
+          }
+        }
+        if (pts.length >= 3) activeZones.add(ServiceZone(id, (m['name'] ?? '').toString(), pts, true, numD(m['surgePercent'])));
+      });
+      // توافقاً مع إعداد النظام الحالي: عدم وجود مناطق مفعّلة يعني عدم تقييد الخدمة.
+      if (activeZones.isNotEmpty) {
+        final pickupAllowed = activeZones.any((z) => z.contains(pickup.point));
+        final destAllowed = activeZones.any((z) => z.contains(dest.point));
+        if (!pickupAllowed) throw Exception('موقع الانطلاق خارج نطاق الخدمة. اختر نقطة داخل المنطقة المحددة.');
+        if (!destAllowed) throw Exception('الوجهة خارج نطاق الخدمة. اختر وجهة داخل المنطقة المحددة.');
+      }
+    } on FirebaseException catch (e) {
+      throw Exception('تعذر التحقق من مناطق الخدمة. تحقق من اتصال Firebase والصلاحيات (${e.code}).');
     }
     final user = FirebaseAuth.instance.currentUser!;
     final profile = asMap((await db.child('users/$uid').get()).value);
