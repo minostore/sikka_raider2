@@ -62,7 +62,7 @@ class _DocsScreenState extends State<DocsScreen> {
       // الرفع إلى Cloudflare R2 عبر خدمة sikka-uploads (عنوانها يُضبط من لوحة التحكم > الإعدادات)
       final cfg = (await FirebaseDatabase.instance.ref('settings/uploadApi').get()).value?.toString();
       final base = (cfg != null && cfg.trim().isNotEmpty) ? cfg.trim() : _defaultUploadApi;
-      final token = await FirebaseAuth.instance.currentUser!.getIdToken();
+      final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
       if (token == null || token.isEmpty) throw Exception('تعذر الحصول على رمز تسجيل الدخول. سجل الدخول مرة أخرى.');
       final bytes = await x.readAsBytes();
       final type = (x.mimeType != null && x.mimeType!.startsWith('image/')) ? x.mimeType! : 'image/jpeg';
