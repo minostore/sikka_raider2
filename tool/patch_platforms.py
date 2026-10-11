@@ -3,8 +3,8 @@
 import re, sys, glob, pathlib
 
 PKG = sys.argv[1]
-ROLE = "rider"
-APP_LABEL = "مشوار"
+ROLE = "driver"
+APP_LABEL = "sikka rider"
 
 # ---------- Android ----------
 mf = pathlib.Path("android/app/src/main/AndroidManifest.xml")

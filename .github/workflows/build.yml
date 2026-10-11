@@ -34,7 +34,7 @@ jobs:
         run: flutter build apk --release --target-platform android-arm64
       - uses: actions/upload-artifact@v4
         with:
-          name: mishwar_rider-apk
+          name: sikka_rider-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
   ios:

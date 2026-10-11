@@ -1,37 +1,68 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import '../core/theme.dart';
+import '../core/utils.dart';
 import '../services/auth_service.dart';
-import 'auth_screens.dart';
-import 'main_shell.dart';
+import '../widgets/common.dart';
+import 'auth_driver.dart';
+import 'docs_screen.dart';
+import 'driver_shell.dart';
+import 'pending_screen.dart';
 
-Widget _home() => const MainShell();
+Widget _gate() => const DriverGate();
 
-/// نقطة البداية: شاشة التحميل ثم الترحيب أو الرئيسية حسب حالة الدخول
 class SplashGate extends StatelessWidget {
   const SplashGate({super.key});
   @override
-  Widget build(BuildContext context) => SplashScreen(
-        tagline: 'رحلتك تبدأ هنا',
-        resolve: () async {
-          final u = FirebaseAuth.instance.currentUser;
-          if (u != null) {
-            try {
-              final st = (await FirebaseDatabase.instance.ref('users/${u.uid}/status').get()).value;
-              if (st == 'suspended') {
-                await AuthService.signOut();
-              } else {
-                return _home();
-              }
-            } catch (_) {
-              return _home(); // بدون إنترنت: ندخل ونعرض رسائل الخطأ داخل الشاشات
-            }
-          }
-          return WelcomeScreen(
-            title: 'أهلاً بك في مشوار',
-            subtitle: 'اطلب رحلتك بالسعر المناسب وتابعها لحظة بلحظة',
-            homeBuilder: _home,
-          );
-        },
+  Widget build(BuildContext context) => DriverSplash(
+        resolve: () async => FirebaseAuth.instance.currentUser != null ? _gate() : LoginScreen(homeBuilder: _gate),
       );
+}
+
+/// يوجّه السائق حسب حالة حسابه: مستندات ← مراجعة ← تشغيل
+class DriverGate extends StatelessWidget {
+  const DriverGate({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    return StreamBuilder<DatabaseEvent>(
+      stream: FirebaseDatabase.instance.ref('drivers/$uid').onValue,
+      builder: (c, s) {
+        if (s.hasError) return const Scaffold(body: ErrorView('تعذر تحميل حالة الحساب.'));
+        if (!s.hasData) return const Scaffold(body: LoadingView());
+        final m = asMap(s.data!.snapshot.value);
+        switch (m['status']) {
+          case 'approved':
+            return const DriverShell();
+          case 'pending':
+          case 'rejected':
+            return PendingScreen(data: m);
+          case 'suspended':
+            return Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.block, size: 64, color: AppColors.red),
+                    const SizedBox(height: 12),
+                    const Text('تم إيقاف حسابك. تواصل مع الدعم.', textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: () async {
+                        await AuthService.signOut();
+                        if (context.mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SplashGate()), (r) => false);
+                      },
+                      child: const Text('تسجيل الخروج'),
+                    ),
+                  ]),
+                ),
+              ),
+            );
+          default:
+            return DocsScreen(data: m);
+        }
+      },
+    );
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/config.dart';
 import '../core/theme.dart';
+import '../services/zone_service.dart';
 
 class AppMap extends StatefulWidget {
   final MapController controller;
@@ -65,6 +66,19 @@ class _AppMapState extends State<AppMap> {
                 });
               }
             },
+          ),
+          ValueListenableBuilder<List<ServiceZone>>(
+            valueListenable: ZoneService.zones,
+            builder: (_, zs, __) => PolygonLayer(polygons: [
+              for (final z in zs)
+                if (z.active && z.points.length >= 3)
+                  Polygon(
+                    points: z.points,
+                    color: AppColors.primary.withValues(alpha: 0.10),
+                    borderColor: AppColors.primary,
+                    borderStrokeWidth: 2,
+                  ),
+            ]),
           ),
           PolylineLayer(polylines: widget.polylines),
           MarkerLayer(markers: widget.markers),

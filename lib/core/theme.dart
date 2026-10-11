@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const primary = Color(0xFF007F8C);
-  static const navy = Color(0xFF003048);
+  static const primary = Color(0xFF0AC8D2);
+  static const navy = Color(0xFF082840);
   static const green = Color(0xFF00BE78);
   static const orange = Color(0xFFF0B446);
   static const red = Color(0xFFFA463C);
+  static const ink = Color(0xFF0B2A3C);
+  static const field = Color(0xFFF1F5F7);
 }
 
 class AppTheme {
@@ -14,7 +16,7 @@ class AppTheme {
 
   static ThemeData _base(Brightness b) {
     final isDark = b == Brightness.dark;
-    final bg = isDark ? const Color(0xFF082840) : const Color(0xFFF4F7F9);
+    final bg = isDark ? const Color(0xFF082840) : const Color(0xFFF7F9FA);
     final scheme = ColorScheme.fromSeed(seedColor: AppColors.primary, brightness: b)
         .copyWith(surface: isDark ? const Color(0xFF103050) : Colors.white);
     return ThemeData(
@@ -25,7 +27,8 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         backgroundColor: isDark ? bg : Colors.white,
-        foregroundColor: isDark ? Colors.white : AppColors.navy,
+        foregroundColor: isDark ? Colors.white : AppColors.ink,
+        titleTextStyle: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: isDark ? Colors.white : AppColors.ink),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

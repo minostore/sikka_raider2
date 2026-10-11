@@ -1,0 +1,65 @@
+import 'dart:async';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
+import '../core/utils.dart';
+
+class ServiceZone {
+  final String id;
+  final String name;
+  final List<LatLng> points;
+  final bool active;
+  final double surge;
+  ServiceZone(this.id, this.name, this.points, this.active, this.surge);
+
+  /// اختبار نقطة داخل مضلع (Ray casting)
+  bool contains(LatLng p) {
+    var inside = false;
+    for (var i = 0, j = points.length - 1; i < points.length; j = i++) {
+      final a = points[i], b = points[j];
+      final cross = (a.latitude > p.latitude) != (b.latitude > p.latitude) &&
+          p.longitude <
+              (b.longitude - a.longitude) * (p.latitude - a.latitude) / (b.latitude - a.latitude) + a.longitude;
+      if (cross) inside = !inside;
+    }
+    return inside;
+  }
+}
+
+/// مناطق الخدمة التي ترسمها الإدارة من لوحة التحكم.
+/// إن لم توجد أي منطقة مفعّلة فالخدمة متاحة في كل مكان.
+class ZoneService {
+  static final ValueNotifier<List<ServiceZone>> zones = ValueNotifier([]);
+  static StreamSubscription? _sub;
+  static const outsideMessage = 'الموقع المحدد خارج نطاق الخدمة أو غير متاح حالياً.';
+
+  static void start() {
+    if (_sub != null) return;
+    _sub = FirebaseDatabase.instance.ref('zones').onValue.listen((e) {
+      final out = <ServiceZone>[];
+      asMap(e.snapshot.value).forEach((id, v) {
+        final m = asMap(v);
+        final pts = asMap(m['points']).entries.toList()
+          ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
+        final list = pts.map((p) {
+          final q = asMap(p.value);
+          return LatLng(numD(q['lat']), numD(q['lng']));
+        }).toList();
+        out.add(ServiceZone(id, (m['name'] ?? '').toString(), list, m['active'] != false, numD(m['surgePercent'])));
+      });
+      zones.value = out;
+    }, onError: (_) {});
+  }
+
+  static List<ServiceZone> get active =>
+      zones.value.where((z) => z.active && z.points.length >= 3).toList();
+  static bool get restricted => active.isNotEmpty;
+  static bool allowed(LatLng p) => !restricted || active.any((z) => z.contains(p));
+  static double surgeAt(LatLng p) {
+    var s = 0.0;
+    for (final z in active) {
+      if (z.contains(p) && z.surge > s) s = z.surge;
+    }
+    return s;
+  }
+}

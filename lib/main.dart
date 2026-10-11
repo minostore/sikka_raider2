@@ -13,18 +13,18 @@ Future<void> main() async {
   } catch (e) {
     initError = e;
   }
-  runApp(MishwarRiderApp(initError: initError));
+  runApp(MishwarDriverApp(initError: initError));
 }
 
-class MishwarRiderApp extends StatelessWidget {
+class MishwarDriverApp extends StatelessWidget {
   final Object? initError;
-  const MishwarRiderApp({super.key, this.initError});
+  const MishwarDriverApp({super.key, this.initError});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'مشوار',
+        title: 'sikka rider',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.dark,
         locale: const Locale('ar'),
         supportedLocales: const [Locale('ar')],
         localizationsDelegates: const [

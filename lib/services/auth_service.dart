@@ -31,9 +31,11 @@ class AuthService {
   // الهوية داخل Firebase Auth = بريد وهمي مشتق من رقم الجوال (بدون الحاجة لخدمة SMS)
   static String _email(String phone) => '${normalizePhone(phone)}@users.mishwar.app';
 
-  static Future<void> signIn(String phone, String password) async {
+  /// يقبل بريداً إلكترونياً أو رقم موبايل
+  static Future<void> signIn(String identifier, String password) async {
+    final id0 = identifier.trim();
     final cred = await _auth.signInWithEmailAndPassword(
-        email: _email(phone), password: password);
+        email: id0.contains('@') ? id0.toLowerCase() : _email(id0), password: password);
     final id = cred.user!.uid;
     final role = (await _db.child('users/$id/role').get()).value?.toString();
     final status = (await _db.child('users/$id/status').get()).value?.toString();
@@ -56,8 +58,9 @@ class AuthService {
     required String password,
     String? city,
   }) async {
-    final cred = await _auth.createUserWithEmailAndPassword(
-        email: _email(phone), password: password);
+    // الراكب: بريده الحقيقي هو هوية الدخول (يدعم استرجاع كلمة المرور). السائق: الجوال.
+    final loginEmail = (AppConfig.role == 'rider' && email.contains('@')) ? email.toLowerCase() : _email(phone);
+    final cred = await _auth.createUserWithEmailAndPassword(email: loginEmail, password: password);
     final id = cred.user!.uid;
     await cred.user!.updateDisplayName(name);
     final p = normalizePhone(phone);
@@ -85,6 +88,9 @@ class AuthService {
 
   static Future<void> signOut() => _auth.signOut();
 
+  static Future<void> resetPassword(String email) =>
+      _auth.sendPasswordResetEmail(email: email.trim().toLowerCase());
+
   static String message(Object e) {
     if (e is AppAuthException) return e.message;
     if (e is FirebaseAuthException) {
@@ -93,9 +99,9 @@ class AuthService {
         case 'wrong-password':
         case 'user-not-found':
         case 'invalid-email':
-          return 'رقم الجوال أو كلمة المرور غير صحيحة.';
+          return 'البيانات غير صحيحة. تأكد من البريد/الجوال وكلمة المرور.';
         case 'email-already-in-use':
-          return 'رقم الجوال مسجّل مسبقاً. سجّل الدخول.';
+          return 'هذا الحساب مسجّل مسبقاً. سجّل الدخول.';
         case 'weak-password':
           return 'كلمة المرور ضعيفة (6 أحرف على الأقل).';
         case 'network-request-failed':

@@ -1,0 +1,151 @@
+import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../core/theme.dart';
+import '../core/utils.dart';
+import '../services/auth_service.dart';
+import '../widgets/common.dart';
+import 'auth_driver.dart';
+import 'splash_gate.dart';
+
+const docLabels = {
+  'license': 'رخصة القيادة',
+  'registration': 'استمارة المركبة',
+  'nationalId': 'الهوية الوطنية',
+  'insurance': 'التأمين',
+  'photo': 'صورة شخصية',
+};
+const docIcons = {
+  'license': Icons.badge_outlined,
+  'registration': Icons.directions_car_outlined,
+  'nationalId': Icons.credit_card,
+  'insurance': Icons.shield_outlined,
+  'photo': Icons.account_box_outlined,
+};
+
+/// الخطوة 2: بيانات المركبة — الخطوة 3: رفع المستندات
+class DocsScreen extends StatefulWidget {
+  final Map<String, dynamic> data;
+  const DocsScreen({super.key, required this.data});
+  @override
+  State<DocsScreen> createState() => _DocsScreenState();
+}
+
+class _DocsScreenState extends State<DocsScreen> {
+  final _uid = FirebaseAuth.instance.currentUser!.uid;
+  late final Map<String, dynamic> _veh = asMap(widget.data['vehicle']);
+  late final _model = TextEditingController(text: _veh['model']?.toString() ?? '');
+  late final _year = TextEditingController(text: _veh['year']?.toString() ?? '');
+  late final _color = TextEditingController(text: _veh['color']?.toString() ?? '');
+  late final _plate = TextEditingController(text: _veh['plate']?.toString() ?? '');
+  late Map<String, dynamic> _docs = asMap(widget.data['docs']);
+  final Set<String> _uploading = {};
+  bool _busy = false;
+  late int _step = (_veh['plate'] ?? '').toString().isNotEmpty ? 3 : 2;
+
+  Future<void> _pick(String key) async {
+    final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 1600);
+    if (x == null) return;
+    setState(() => _uploading.add(key));
+    try {
+      final ref = FirebaseStorage.instance.ref('driverDocs/$_uid/$key.jpg');
+      await ref.putFile(File(x.path));
+      final url = await ref.getDownloadURL();
+      await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set({'url': url, 'status': 'pending', 'uploadedAt': ServerValue.timestamp});
+      setState(() => _docs[key] = {'url': url, 'status': 'pending'});
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر رفع الملف. تحقق من الإنترنت ومن تفعيل Storage.', error: true);
+    }
+    if (mounted) setState(() => _uploading.remove(key));
+  }
+
+  Future<void> _vehicleNext() async {
+    if ([_model, _year, _color, _plate].any((c) => c.text.trim().isEmpty)) return showSnack(context, 'أكمل بيانات المركبة', error: true);
+    setState(() => _busy = true);
+    try {
+      await FirebaseDatabase.instance.ref('drivers/$_uid/vehicle').set({'model': _model.text.trim(), 'year': _year.text.trim(), 'color': _color.text.trim(), 'plate': _plate.text.trim()});
+      setState(() => _step = 3);
+    } catch (e) {
+      showSnack(context, AuthService.message(e), error: true);
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _submit() async {
+    final missing = docLabels.keys.where((k) => asMap(_docs[k])['url'] == null);
+    if (missing.isNotEmpty) return showSnack(context, 'ارفع: ${missing.map((k) => docLabels[k]).join('، ')}', error: true);
+    setState(() => _busy = true);
+    try {
+      await FirebaseDatabase.instance.ref('drivers/$_uid').update({'status': 'pending', 'submittedAt': ServerValue.timestamp});
+      if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) showSnack(context, AuthService.message(e), error: true);
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Widget _f(TextEditingController c, String h, IconData i, {bool num = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextField(controller: c, keyboardType: num ? TextInputType.number : null, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, h, i)),
+      );
+
+  Widget _docRow(String k) {
+    final d = asMap(_docs[k]);
+    final st = d['status']?.toString();
+    final up = _uploading.contains(k);
+    return InkWell(
+      onTap: up ? null : () => _pick(k),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(children: [
+          Container(width: 42, height: 42, decoration: BoxDecoration(color: const Color(0xFFE9F1F5), borderRadius: BorderRadius.circular(10)), child: Icon(docIcons[k], color: AppColors.ink)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(docLabels[k]!, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            if (st == 'rejected') Text('مرفوض: ${d['note'] ?? 'أعد الرفع'}', style: const TextStyle(color: AppColors.red, fontSize: 12)),
+          ])),
+          up
+              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+              : d['url'] == null
+                  ? const Icon(Icons.add_circle_outline, color: Colors.grey)
+                  : Icon(st == 'rejected' ? Icons.error : Icons.check_circle, color: st == 'rejected' ? AppColors.red : AppColors.green),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(
+          child: ListView(padding: const EdgeInsets.fromLTRB(22, 34, 22, 24), children: [
+            Text(_step == 2 ? 'تسجيل السائق' : 'رفع المستندات', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
+            const SizedBox(height: 18),
+            StepperHeader(_step),
+            const SizedBox(height: 24),
+            if (_step == 2) ...[
+              _f(_model, 'نوع المركبة (مثال: تويوتا كامري)', Icons.directions_car_outlined),
+              _f(_year, 'سنة الصنع', Icons.calendar_today_outlined, num: true),
+              _f(_color, 'اللون', Icons.palette_outlined),
+              _f(_plate, 'رقم اللوحة', Icons.pin_outlined),
+              const SizedBox(height: 10),
+              AppButton('التالي', onPressed: _vehicleNext, busy: _busy),
+            ] else ...[
+              InfoCard(child: Column(children: [for (final k in docLabels.keys) ...[_docRow(k), if (k != docLabels.keys.last) const Divider(height: 1)]])),
+              const SizedBox(height: 18),
+              AppButton('إرسال المستندات', onPressed: _uploading.isEmpty ? _submit : null, busy: _busy),
+              TextButton(onPressed: () => setState(() => _step = 2), child: const Text('تعديل بيانات المركبة', style: TextStyle(color: Colors.white70))),
+            ],
+            TextButton(
+              onPressed: () async {
+                await AuthService.signOut();
+                if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SplashGate()), (r) => false);
+              },
+              child: const Text('تسجيل الخروج', style: TextStyle(color: Colors.white54)),
+            ),
+          ]),
+        ),
+      );
+}
