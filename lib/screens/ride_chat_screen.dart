@@ -38,10 +38,12 @@ class _RideChatScreenState extends State<RideChatScreen> {
       final driverId = (ride['driverId'] ?? '').toString();
       if (uid != riderId && uid != driverId) throw Exception('لا يمكنك فتح محادثة هذه الرحلة.');
       final isRider = uid == riderId;
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _myName = (isRider ? ride['riderName'] : ride['driverName'])?.toString() ?? 'أنا';
         _otherName = (isRider ? ride['driverName'] : ride['riderName'])?.toString() ?? 'الطرف الآخر';
-      });
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     }

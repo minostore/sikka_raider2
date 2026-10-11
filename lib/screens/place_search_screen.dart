@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/theme.dart';
-import '../core/utils.dart';
 import '../models/place.dart';
 import '../services/geocoding_service.dart';
 import '../services/location_service.dart';

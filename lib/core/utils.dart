@@ -73,7 +73,7 @@ double bearing(LatLng a, LatLng b) {
   return (atan2(y, x) * 180 / pi + 360) % 360;
 }
 
-/// تحويل قيمة Firebase (Map<Object?,Object?>) إلى Map<String,dynamic> بشكل متداخل
+/// تحويل قيمة Firebase (`Map<Object?, Object?>`) إلى `Map<String, dynamic>` بشكل متداخل
 Map<String, dynamic> asMap(Object? v) {
   if (v is Map) {
     return v.map((k, val) => MapEntry(k.toString(), val is Map ? asMap(val) : val));

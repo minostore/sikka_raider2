@@ -117,7 +117,10 @@ String _transactionDetails(Map<String, dynamic> t) {
   if (rawSource.isNotEmpty) parts.add(sourceLabels[rawSource.toLowerCase()] ?? rawSource);
   final rideId = (t['rideId'] ?? t['ride_id'] ?? '').toString().trim();
   final reference = (t['reference'] ?? t['referenceId'] ?? t['requestId'] ?? '').toString().trim();
-  if (rideId.isNotEmpty) parts.add('رحلة #${rideId.length > 8 ? rideId.substring(0, 8) : rideId}');
-  else if (reference.isNotEmpty) parts.add('مرجع #${reference.length > 8 ? reference.substring(0, 8) : reference}');
+  if (rideId.isNotEmpty) {
+    parts.add('رحلة #${rideId.length > 8 ? rideId.substring(0, 8) : rideId}');
+  } else if (reference.isNotEmpty) {
+    parts.add('مرجع #${reference.length > 8 ? reference.substring(0, 8) : reference}');
+  }
   return parts.join(' • ');
 }

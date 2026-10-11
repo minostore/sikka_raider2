@@ -228,12 +228,17 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
               if (r.status == 'accepted' || r.status == 'arrived' || r.status == 'started') {
                 LocationPublisher.setRide(r.id, state: r.status);
               } else if (r.status == 'completed' || r.status == 'cancelled') {
+                // Capture the rider ID before the callback because `r` is nullable
+                // in the surrounding StreamBuilder scope.
+                final riderId = r?.riderId ?? '';
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
                   LocationPublisher.setRide(null);
                   db.child('driverActive/$myUid').remove().catchError((_) {});
-                  db.child('users/${r.riderId}/activeRide').remove().catchError((_) {});
-                            });
+                  if (riderId.isNotEmpty) {
+                    db.child('users/$riderId/activeRide').remove().catchError((_) {});
+                  }
+                });
               }
             }
             _ride = r;

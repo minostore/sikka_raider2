@@ -44,7 +44,7 @@ class _DocsScreenState extends State<DocsScreen> {
   late final _year = TextEditingController(text: _veh['year']?.toString() ?? '');
   late final _color = TextEditingController(text: _veh['color']?.toString() ?? '');
   late final _plate = TextEditingController(text: _veh['plate']?.toString() ?? '');
-  late Map<String, dynamic> _docs = asMap(widget.data['docs']);
+  late final Map<String, dynamic> _docs = asMap(widget.data['docs']);
   final Set<String> _uploading = {};
   bool _busy = false;
   late int _step = (_veh['plate'] ?? '').toString().isNotEmpty ? 3 : 2;

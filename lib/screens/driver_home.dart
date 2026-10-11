@@ -11,7 +11,6 @@ import '../services/location_service.dart';
 import '../services/zone_service.dart';
 import '../widgets/app_map.dart';
 import '../widgets/common.dart';
-import '../widgets/markers.dart';
 import 'request_details_screen.dart';
 
 class DriverHome extends StatefulWidget {
