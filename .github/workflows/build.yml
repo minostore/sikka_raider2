@@ -54,31 +54,30 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
       - name: تجهيز منصات Android/iOS
         run: bash tool/setup_platforms.sh
-      - name: تهيئة مشروع Android وترحيل Gradle قبل ضبط SDK
+      - name: ترحيل ملفات Android Gradle أولاً
         run: flutter build apk --release --target-platform android-arm64 --config-only
-      - name: فرض Android compileSdk 36 والتحقق منه
+      - name: فرض Android compileSdk 36 في كل ملفات Gradle والتحقق
         shell: bash
         run: |
           python3 - <<'PYCODE'
           from pathlib import Path
-          import re, sys
-          p = Path("android/app/build.gradle.kts")
-          if not p.exists():
-              p = Path("android/app/build.gradle")
-          if not p.exists():
-              raise SystemExit("ERROR: Android app Gradle file was not generated")
-          s = p.read_text()
-          if re.search(r"(?m)^\s*compileSdk\s*=", s):
-              s = re.sub(r"(?m)^(\s*)compileSdk\s*=.*$", r"\g<1>compileSdk = 36", s, count=1)
-          elif re.search(r"(?m)^\s*compileSdkVersion\b", s):
-              s = re.sub(r"(?m)^(\s*)compileSdkVersion\b.*$", r"\g<1>compileSdkVersion 36", s, count=1)
-          else:
-              raise SystemExit("ERROR: compileSdk declaration not found")
-          p.write_text(s)
-          print("Patched", p)
-          print("\n".join(x for x in s.splitlines() if "compileSdk" in x))
-          if not re.search(r"(?m)^\s*compileSdk(?:Version)?\s*(?:=\s*)?36\s*$", s):
-              raise SystemExit("ERROR: compileSdk is not 36")
+          import re
+          files = list(Path("android").glob("**/app/build.gradle.kts")) + list(Path("android").glob("**/app/build.gradle"))
+          files = [p for p in files if p.parent.name == "app"]
+          if not files:
+              raise SystemExit("ERROR: no Android app Gradle file found")
+          for p in files:
+              s = p.read_text()
+              s, n1 = re.subn(r"(?m)^(\s*)compileSdk\s*=.*$", r"\g<1>compileSdk = 36", s)
+              if n1 == 0:
+                  s, n2 = re.subn(r"(?m)^(\s*)compileSdkVersion\s+.*$", r"\g<1>compileSdkVersion 36", s)
+                  if n2 == 0:
+                      raise SystemExit(f"ERROR: compileSdk declaration not found in {p}")
+              p.write_text(s)
+              print(f"--- {p} ---")
+              print("\n".join(x for x in s.splitlines() if "compileSdk" in x))
+              if not re.search(r"(?m)^\s*compileSdk(?:Version)?\s*(?:=\s*)?36\s*$", s):
+                  raise SystemExit(f"ERROR: compileSdk is not 36 in {p}")
           PYCODE
       - name: تحليل الكود
         run: flutter analyze --no-fatal-infos --no-fatal-warnings

@@ -28,14 +28,18 @@ mf.write_text(s, encoding="utf-8")
 
 for g in glob.glob("android/app/build.gradle*"):
     p = pathlib.Path(g); t = p.read_text(encoding="utf-8")
-    # file_picker/flutter_plugin_android_lifecycle now require Android API 36.
-    # This project generates android/ during CI, so patch the generated Gradle file here.
-    # Force API 36 regardless of the template/version of Flutter's generated Gradle file.
-    if re.search(r'(?m)^\s*compileSdk\s*=', t):
-        t = re.sub(r'(?m)^(\s*)compileSdk\s*=.*$', r'\g<1>compileSdk = 36', t, count=1)
-    elif re.search(r'(?m)^\s*compileSdkVersion\b', t):
-        t = re.sub(r'(?m)^(\s*)compileSdkVersion\b.*$', r'\g<1>compileSdkVersion 36', t, count=1)
-    else:
+    # Android API 36 is required by flutter_plugin_android_lifecycle / file_picker.
+    patterns = [
+        (r'(?m)^(\s*)compileSdk\s*=.*$', r'\g<1>compileSdk = 36'),
+        (r'(?m)^(\s*)compileSdkVersion\s+.*$', r'\g<1>compileSdkVersion 36'),
+    ]
+    changed = False
+    for pattern, replacement in patterns:
+        if re.search(pattern, t):
+            t = re.sub(pattern, replacement, t, count=1)
+            changed = True
+            break
+    if not changed:
         raise SystemExit('ERROR: compileSdk declaration not found in ' + str(p))
     if not re.search(r'(?m)^\s*compileSdk(?:Version)?\s*(?:=\s*)?36\s*$', t):
         raise SystemExit('ERROR: failed to force compileSdk 36 in ' + str(p))
