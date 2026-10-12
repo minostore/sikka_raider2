@@ -83,9 +83,9 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
     setState(() => _busy = true);
     try {
       await DriverService.sendOffer(rideId: widget.requestId, price: price, etaMin: (_toPickup?.durationMin ?? 5).round().clamp(1, 120), note: _note.text.trim());
-      setState(() => _sent = true);
+      if (mounted) setState(() => _sent = true);
     } catch (e) {
-      if (mounted) showSnack(context, e.toString().replaceFirst('Exception: ', ''), error: true);
+      if (mounted) showSnack(context, errorMessage(e, fallback: 'تعذر إرسال العرض'), error: true);
     }
     if (mounted) setState(() => _busy = false);
   }

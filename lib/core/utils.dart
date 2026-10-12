@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'config.dart';
@@ -82,6 +83,28 @@ Map<String, dynamic> asMap(Object? v) {
 }
 
 double numD(Object? v, [double d = 0]) => v is num ? v.toDouble() : d;
+
+String errorMessage(Object error, {String fallback = 'حدث خطأ غير متوقع'}) {
+  if (error is FirebaseException) {
+    final code = error.code.toLowerCase();
+    final reason = switch (code.split('/').last) {
+      'permission-denied' => 'رفضت قواعد Firebase العملية. تحقق من صلاحيات المستخدم وقواعد قاعدة البيانات.',
+      'unauthenticated' => 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى.',
+      'network-request-failed' || 'unavailable' => 'تعذر الاتصال بالخادم. تحقق من الإنترنت ثم أعد المحاولة.',
+      'too-many-requests' => 'تكررت المحاولات بسرعة. انتظر قليلاً ثم أعد المحاولة.',
+      'not-found' => 'البيانات المطلوبة غير موجودة على الخادم.',
+      'already-exists' => 'الطلب مسجل مسبقاً.',
+      _ => error.message?.trim().isNotEmpty == true ? error.message!.trim() : fallback,
+    };
+    return '$reason (Firebase: ${error.plugin}/$code)';
+  }
+  if (error is StateError) return error.message.toString();
+  var text = error.toString().trim();
+  text = text.replaceFirst(RegExp(r'^(Exception|Error|StateError):\s*'), '');
+  if (text.isEmpty || text == 'null') return fallback;
+  if (text.length > 260) text = '${text.substring(0, 257)}...';
+  return text;
+}
 
 void showSnack(BuildContext c, String msg, {bool error = false}) {
   if (!c.mounted) return;

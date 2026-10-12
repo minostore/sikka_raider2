@@ -148,8 +148,8 @@ class SettingsScreen extends StatelessWidget {
       try {
         final ticketId = await DriverService.createTicket(t.text.trim(), m.text.trim());
         if (context.mounted) await Navigator.push(context, MaterialPageRoute(builder: (_) => TicketChatScreen(ticketId: ticketId, role: 'driver')));
-      } catch (_) {
-        if (context.mounted) showSnack(context, 'تعذر الإرسال', error: true);
+      } catch (e) {
+        if (context.mounted) showSnack(context, errorMessage(e, fallback: 'تعذر إرسال تذكرة الدعم'), error: true);
       }
     }
   }
