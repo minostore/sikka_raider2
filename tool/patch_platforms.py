@@ -30,10 +30,15 @@ for g in glob.glob("android/app/build.gradle*"):
     p = pathlib.Path(g); t = p.read_text(encoding="utf-8")
     # file_picker/flutter_plugin_android_lifecycle now require Android API 36.
     # This project generates android/ during CI, so patch the generated Gradle file here.
-    t = re.sub(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', t)
-    t = re.sub(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', t)
-    t = re.sub(r'compileSdk\s*=\s*\d+', 'compileSdk = 36', t)
-    t = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 36', t)
+    # Force API 36 regardless of the template/version of Flutter's generated Gradle file.
+    if re.search(r'(?m)^\s*compileSdk\s*=', t):
+        t = re.sub(r'(?m)^(\s*)compileSdk\s*=.*$', r'\g<1>compileSdk = 36', t, count=1)
+    elif re.search(r'(?m)^\s*compileSdkVersion\b', t):
+        t = re.sub(r'(?m)^(\s*)compileSdkVersion\b.*$', r'\g<1>compileSdkVersion 36', t, count=1)
+    else:
+        raise SystemExit('ERROR: compileSdk declaration not found in ' + str(p))
+    if not re.search(r'(?m)^\s*compileSdk(?:Version)?\s*(?:=\s*)?36\s*$', t):
+        raise SystemExit('ERROR: failed to force compileSdk 36 in ' + str(p))
     t = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 23', t)
     t = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 23', t)
     t = re.sub(r'applicationId\s*=\s*"[^"]*"', 'applicationId = "%s"' % PKG, t)
