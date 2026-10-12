@@ -49,6 +49,57 @@ for g in glob.glob("android/app/build.gradle*"):
     t = re.sub(r'applicationId\s+"[^"]*"', 'applicationId "%s"' % PKG, t)
     p.write_text(t, encoding="utf-8")
 
+# ---------- فرض compileSdk 36 على كل مكتبات الـ plugins (مثل file_picker) ----------
+# السبب: التعديل أعلاه يغيّر compileSdk للتطبيق (app) فقط، بينما file_picker
+# وبقية الـ plugins لها ملفات build.gradle خاصة (compileSdk = 34) فيفشل
+# :file_picker:checkReleaseAarMetadata. لذلك نفرض القيمة على كل المشاريع الفرعية.
+KTS_BLOCK = """// SIKKA_FORCE_COMPILE_SDK
+subprojects {
+    afterEvaluate {
+        val androidExt = extensions.findByName("android")
+        if (androidExt != null) {
+            try {
+                androidExt.javaClass.methods
+                    .firstOrNull { it.name == "setCompileSdk" && it.parameterCount == 1 }
+                    ?.invoke(androidExt, 36)
+            } catch (e: Exception) {
+                println("compileSdk override skipped for ${project.name}: $e")
+            }
+        }
+    }
+}
+
+"""
+GROOVY_BLOCK = """// SIKKA_FORCE_COMPILE_SDK
+subprojects {
+    afterEvaluate { p ->
+        def androidExt = p.extensions.findByName("android")
+        if (androidExt != null) {
+            try {
+                androidExt.compileSdk = 36
+            } catch (Throwable e) {
+                println("compileSdk override skipped for ${p.name}: ${e}")
+            }
+        }
+    }
+}
+
+"""
+_root = None
+for name, block in (("android/build.gradle.kts", KTS_BLOCK), ("android/build.gradle", GROOVY_BLOCK)):
+    cand = pathlib.Path(name)
+    if cand.exists():
+        _root = (cand, block)
+        break
+if _root is None:
+    raise SystemExit("ERROR: root android/build.gradle(.kts) not found")
+_p, _block = _root
+_t = _p.read_text(encoding="utf-8")
+if "SIKKA_FORCE_COMPILE_SDK" not in _t:
+    # لازم يتسجّل قبل أي subprojects { evaluationDependsOn(":app") } وإلا يفشل afterEvaluate
+    _p.write_text(_block + _t, encoding="utf-8")
+print("forced compileSdk 36 for all subprojects in", _p)
+
 # ---------- iOS ----------
 plist = pathlib.Path("ios/Runner/Info.plist")
 t = plist.read_text(encoding="utf-8")
