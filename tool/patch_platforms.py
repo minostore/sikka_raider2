@@ -28,6 +28,12 @@ mf.write_text(s, encoding="utf-8")
 
 for g in glob.glob("android/app/build.gradle*"):
     p = pathlib.Path(g); t = p.read_text(encoding="utf-8")
+    # file_picker/flutter_plugin_android_lifecycle now require Android API 36.
+    # This project generates android/ during CI, so patch the generated Gradle file here.
+    t = re.sub(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', t)
+    t = re.sub(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', t)
+    t = re.sub(r'compileSdk\s*=\s*\d+', 'compileSdk = 36', t)
+    t = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 36', t)
     t = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 23', t)
     t = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 23', t)
     t = re.sub(r'applicationId\s*=\s*"[^"]*"', 'applicationId = "%s"' % PKG, t)
