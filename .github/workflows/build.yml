@@ -1,5 +1,8 @@
 name: بناء التطبيق (Android APK + iOS)
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
@@ -8,11 +11,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  release-version:
+    runs-on: ubuntu-latest
+    outputs:
+      release_ref: ${{ steps.release-ref.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: زيادة الإصدار عند تشغيل بناء يدوي
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          python3 tool/bump_version.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml lib/core/app_version.dart
+          git commit -m "chore: bump release version [skip ci]"
+          git push
+      - id: release-ref
+        run: echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   android:
+    needs: release-version
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-version.outputs.release_ref }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -42,10 +66,13 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
 
   ios:
+    needs: release-version
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-version.outputs.release_ref }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

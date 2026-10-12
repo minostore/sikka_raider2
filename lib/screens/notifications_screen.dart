@@ -1,8 +1,11 @@
 import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+
 import '../core/utils.dart';
+import '../core/theme.dart';
 import '../widgets/common.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -22,23 +25,37 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    _subs.add(_db.child('notifications/$_uid').onValue.listen((e) {
-      if (!mounted) return;
-      setState(() {
-        _mine = asMap(e.snapshot.value).map((k, v) => MapEntry(k, {...asMap(v), '_id': k}));
-        _loaded = true;
-      });
-    }, onError: (_) {
-      if (mounted) setState(() => _loaded = true);
-    }));
-    _subs.add(_db.child('broadcasts').onValue.listen((e) {
-      if (!mounted) return;
-      setState(() => _broadcasts = asMap(e.snapshot.value)
-          .values
-          .map((v) => asMap(v))
-          .where((m) => m['audience'] == 'all' || m['audience'] == 'drivers')
-          .toList());
-    }, onError: (_) {}));
+    _subs.add(
+      _db
+          .child('notifications/$_uid')
+          .onValue
+          .listen(
+            (e) {
+              if (!mounted) return;
+              setState(() {
+                _mine = asMap(e.snapshot.value)
+                    .map((k, v) => MapEntry(k, {...asMap(v), '_id': k}));
+                _loaded = true;
+              });
+            },
+            onError: (_) {
+              if (mounted) setState(() => _loaded = true);
+            },
+          ),
+    );
+    _subs.add(
+      _db.child('broadcasts').onValue.listen((e) {
+        if (!mounted) return;
+        setState(
+          () => _broadcasts = asMap(e.snapshot.value).values
+              .map((v) => asMap(v))
+              .where(
+                (m) => m['audience'] == 'all' || m['audience'] == 'drivers',
+              )
+              .toList(),
+        );
+      }, onError: (_) {}),
+    );
   }
 
   @override
@@ -85,34 +102,97 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      ..._mine.values.map((m) => {...m, '_p': true}),
-      ..._broadcasts,
-    ]..sort((a, b) => ((b['createdAt'] as num?) ?? 0).compareTo((a['createdAt'] as num?) ?? 0));
+    final items =
+        [
+          ..._mine.values.map((m) => {...m, '_p': true}),
+          ..._broadcasts,
+        ]..sort(
+          (a, b) => ((b['createdAt'] as num?) ?? 0).compareTo(
+            (a['createdAt'] as num?) ?? 0,
+          ),
+        );
     return Scaffold(
-      appBar: AppBar(title: const Text('الإشعارات'), actions: [
-        TextButton(onPressed: _readAll, child: const Text('تحديد الكل كمقروء')),
-      ]),
+      appBar: AppBar(
+        title: const Text('الإشعارات'),
+        actions: [
+          TextButton(
+            onPressed: _readAll,
+            child: const Text('تحديد الكل كمقروء'),
+          ),
+        ],
+      ),
       body: !_loaded
           ? const LoadingView()
           : items.isEmpty
-              ? const EmptyView('لا توجد إشعارات', icon: Icons.notifications_none)
-              : ListView.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final n = items[i];
-                    final unread = n['_p'] == true && n['read'] != true;
-                    return ListTile(
-                      leading: Icon(unread ? Icons.circle : Icons.circle_outlined, size: 12),
-                      title: Text((n['title'] ?? '').toString()),
-                      subtitle: Text('${n['body'] ?? n['message'] ?? ''}\n${timeAgo((n['createdAt'] as num?)?.toInt())}'),
-                      isThreeLine: true,
-                      onTap: () => _markRead(n),
-                      tileColor: unread ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04) : null,
-                    );
-                  },
-                ),
+          ? const EmptyView('لا توجد إشعارات', icon: Icons.notifications_none)
+          : ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final n = items[i];
+                final unread = n['_p'] == true && n['read'] != true;
+                final imageUrl = (n['imageUrl'] ?? '').toString();
+                return Card(
+                  color: unread ? const Color(0xFFFFFAE8) : Colors.white,
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: Icon(
+                          unread ? Icons.circle : Icons.circle_outlined,
+                          size: 12,
+                          color: AppColors.navy,
+                        ),
+                        title: Text(
+                          (n['title'] ?? '').toString(),
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${n['body'] ?? n['message'] ?? ''}\n${timeAgo((n['createdAt'] as num?)?.toInt())}',
+                          style: const TextStyle(color: Color(0xFF52636D)),
+                        ),
+                        isThreeLine: true,
+                        onTap: () => _markRead(n),
+                      ),
+                      if (imageUrl.startsWith('https://'))
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                          child: GestureDetector(
+                            onTap: () => showDialog<void>(
+                              context: context,
+                              builder: (_) => Dialog(
+                                child: InteractiveViewer(
+                                  child: Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                imageUrl,
+                                height: 170,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }
