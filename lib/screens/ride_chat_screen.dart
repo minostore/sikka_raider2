@@ -70,6 +70,8 @@ class _RideChatScreenState extends State<RideChatScreen> {
         'senderName': _myName,
         'text': text,
         'createdAt': ServerValue.timestamp,
+        'status': 'sent',
+        'readBy': {},
       });
       _input.clear();
       if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent + 120, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
@@ -113,7 +115,7 @@ class _RideChatScreenState extends State<RideChatScreen> {
                   final messages = <Map<String, dynamic>>[];
                   if (value is Map) {
                     value.forEach((key, item) {
-                      if (item is Map) messages.add({...Map<String, dynamic>.from(item), '_key': key.toString()});
+                      if (item is Map) { final msg = Map<String, dynamic>.from(item); messages.add({...msg, '_key': key.toString()}); if (uid != null && msg['senderId']?.toString() != uid && !!(msg['readBy'] is Map && (msg['readBy'] as Map)[uid] == true)) { _db.child('rides/${widget.rideId}/messages/${key.toString()}/readBy/$uid').set(true).catchError((_) {}); } }
                     });
                   }
                   messages.sort((a, b) => ((a['createdAt'] as num?) ?? 0).compareTo((b['createdAt'] as num?) ?? 0));
@@ -131,7 +133,7 @@ class _RideChatScreenState extends State<RideChatScreen> {
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             if (!mine) Text((m['senderName'] ?? _otherName).toString(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1769AA))),
                             Text((m['text'] ?? '').toString(), style: const TextStyle(fontSize: 15)),
-                            Align(alignment: AlignmentDirectional.centerEnd, child: Text(_time(m['createdAt']), style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+                            Align(alignment: AlignmentDirectional.centerEnd, child: Row(mainAxisSize: MainAxisSize.min, children: [Text(_time(m['createdAt']), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)), if (mine) ...[const SizedBox(width: 4), Icon(m['readBy'] is Map && (m['readBy'] as Map).isNotEmpty ? Icons.done_all : Icons.done, size: 15, color: m['readBy'] is Map && (m['readBy'] as Map).isNotEmpty ? Colors.blue : Colors.grey)]])),
                           ]),
                         ),
                       );

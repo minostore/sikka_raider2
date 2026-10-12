@@ -36,7 +36,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       setState(() => _broadcasts = asMap(e.snapshot.value)
           .values
           .map((v) => asMap(v))
-          .where((m) => (m['audience'] == 'all' || m['audience'] == 'drivers') && ((m['expiresAt'] as num?) == null || (m['expiresAt'] as num).toInt() > DateTime.now().millisecondsSinceEpoch))
+          .where((m) => m['audience'] == 'all' || m['audience'] == 'drivers')
           .toList());
     }, onError: (_) {}));
   }
@@ -63,23 +63,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  Future<void> _showDetails(Map<String, dynamic> item) async {
-    await _markRead(item);
-    if (!mounted) return;
-    final title = (item['title'] ?? 'إشعار').toString();
-    final body = (item['description'] ?? item['body'] ?? item['message'] ?? '').toString();
-    final imageUrl = (item['imageUrl'] ?? '').toString();
-    showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-      title: Text(title),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (imageUrl.startsWith('https://')) ...[ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink())), const SizedBox(height: 12)],
-        SelectableText(body),
-        if ((item['expiresAt'] as num?) != null) ...[const SizedBox(height: 12), Text('صالح حتى: ${DateTime.fromMillisecondsSinceEpoch((item['expiresAt'] as num).toInt()).toLocal()}')],
-      ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
-    ));
-  }
-
   Future<void> _readAll() async {
     final up = <String, Object?>{};
     _mine.forEach((k, v) {
@@ -103,7 +86,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final items = [
-      ..._mine.values.where((m) => (m['expiresAt'] as num?) == null || (m['expiresAt'] as num).toInt() > DateTime.now().millisecondsSinceEpoch).map((m) => {...m, '_p': true}),
+      ..._mine.values.map((m) => {...m, '_p': true}),
       ..._broadcasts,
     ]..sort((a, b) => ((b['createdAt'] as num?) ?? 0).compareTo((a['createdAt'] as num?) ?? 0));
     return Scaffold(
@@ -123,10 +106,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     return ListTile(
                       leading: Icon(unread ? Icons.circle : Icons.circle_outlined, size: 12),
                       title: Text((n['title'] ?? '').toString()),
-                      subtitle: Text('${n['body'] ?? n['message'] ?? ''}\n${timeAgo((n['createdAt'] as num?)?.toInt())}', maxLines: 2, overflow: TextOverflow.ellipsis),
-                      trailing: (n['imageUrl'] is String && (n['imageUrl'] as String).isNotEmpty) ? const Icon(Icons.image_outlined) : const Icon(Icons.chevron_left),
+                      subtitle: Text('${n['body'] ?? n['message'] ?? ''}\n${timeAgo((n['createdAt'] as num?)?.toInt())}'),
                       isThreeLine: true,
-                      onTap: () => _showDetails(n),
+                      onTap: () => _markRead(n),
                       tileColor: unread ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04) : null,
                     );
                   },

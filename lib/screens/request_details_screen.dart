@@ -38,7 +38,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
     final exp = (widget.data['expiresAt'] as num?)?.toInt() ?? 0;
     _left = ((exp - DateTime.now().millisecondsSinceEpoch) / 1000).round();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _left--);
+      if (mounted) setState(() { final exp = (widget.data['expiresAt'] as num?)?.toInt() ?? 0; _left = ((exp - DateTime.now().millisecondsSinceEpoch) / 1000).ceil(); });
     });
     _sub = db.child('openRequests/${widget.requestId}').onValue.listen((e) {
       if (!e.snapshot.exists && mounted) setState(() => _gone = true);
@@ -74,7 +74,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
       await DriverService.sendOffer(rideId: widget.requestId, price: price, etaMin: (_toPickup?.durationMin ?? 5).round().clamp(1, 120), note: _note.text.trim());
       setState(() => _sent = true);
     } catch (e) {
-      if (mounted) showSnack(context, 'تعذر إرسال العرض. قد يكون الطلب انتهى.', error: true);
+      if (mounted) showSnack(context, e.toString().replaceFirst('Exception: ', ''), error: true);
     }
     if (mounted) setState(() => _busy = false);
   }

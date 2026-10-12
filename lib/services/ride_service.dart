@@ -113,6 +113,7 @@ class RideService {
       'riderId': uid,
       'riderName': profile['name'] ?? user.displayName ?? '',
       'riderPhone': profile['phone'] ?? '',
+      'riderPhotoUrl': profile['photoUrl'] ?? profile['photoURL'] ?? profile['avatarUrl'] ?? '',
       'pickup': pickup.toMap(),
       'dest': dest.toMap(),
       'distanceKm': double.parse(distanceKm.toStringAsFixed(2)),
@@ -127,7 +128,7 @@ class RideService {
       'openRequests/$id': {
         ...base,
         'createdAt': ServerValue.timestamp,
-        'expiresAt': DateTime.now().millisecondsSinceEpoch + 10 * 60 * 1000,
+        'expiresAt': DateTime.now().millisecondsSinceEpoch + 60 * 1000,
       },
       'userRides/$uid/$id': true,
       'users/$uid/activeRide': id,

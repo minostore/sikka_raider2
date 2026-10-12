@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -24,25 +25,19 @@ class DriverHome extends StatefulWidget {
 class _DriverHomeState extends State<DriverHome> {
   final _map = MapController();
   bool _online = false, _busy = false;
-  LatLng? _currentPosition;
   final Set<String> _hidden = {};
+  Timer? _expiryTimer;
 
   @override
   void initState() {
     super.initState();
     LocationPublisher.stop(); // يبدأ دائماً غير متصل
-    _loadCurrentPosition();
     db.child('drivers/$myUid/online').set(false).catchError((_) {});
+    _expiryTimer = Timer.periodic(const Duration(seconds: 1), (_) { if (mounted && _online) setState(() {}); });
   }
 
-  Future<void> _loadCurrentPosition() async {
-    try {
-      final p = await LocationService.current();
-      if (!mounted) return;
-      setState(() => _currentPosition = p);
-      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _map.move(p, 15); });
-    } catch (_) { /* permission prompt is shown when driver enables availability */ }
-  }
+  @override
+  void dispose() { _expiryTimer?.cancel(); super.dispose(); }
 
   Future<void> _toggle(bool v) async {
     if (_busy) return;
@@ -58,7 +53,6 @@ class _DriverHomeState extends State<DriverHome> {
           return;
         }
         final p = await LocationService.current(); // يتحقق من GPS والصلاحيات
-        await ZoneService.ensureLoaded();
         if (!ZoneService.allowed(p)) {
           if (mounted) showSnack(context, 'موقعك الحالي خارج نطاق الخدمة، لا يمكنك استقبال الرحلات من هنا.', error: true);
           if (mounted) setState(() => _busy = false);
@@ -117,15 +111,16 @@ class _DriverHomeState extends State<DriverHome> {
                 borderRadius: BorderRadius.circular(20),
                 child: ValueListenableBuilder<LatLng?>(
                   valueListenable: LocationPublisher.position,
-                  builder: (_, p, __) { final point = p ?? _currentPosition; return AppMap(
+                  builder: (_, p, __) => AppMap(
                     controller: _map,
-                    center: point ?? AppConfig.defaultCenter,
+                    center: p ?? AppConfig.defaultCenter,
                     zoom: 15,
-                    markers: [if (point != null) _pulse(point)],
+                    markers: [if (p != null) _pulse(p)],
                     onRecenter: () {
-                      _loadCurrentPosition();
+                      final q = LocationPublisher.position.value;
+                      if (q != null) _map.move(q, 15);
                     },
-                  ); },
+                  ),
                 ),
               ),
             ),
@@ -178,10 +173,10 @@ class _DriverHomeState extends State<DriverHome> {
       child: InfoCard(
         child: Column(children: [
           Row(children: [
-            const CircleAvatar(radius: 22, backgroundColor: Color(0xFFE9F1F5), child: Icon(Icons.person, color: AppColors.ink)),
+            CircleAvatar(radius: 22, backgroundColor: const Color(0xFFE9F1F5), backgroundImage: (m['riderPhotoUrl'] ?? '').toString().startsWith('http') ? NetworkImage((m['riderPhotoUrl']).toString()) : null, child: (m['riderPhotoUrl'] ?? '').toString().startsWith('http') ? null : const Icon(Icons.person, color: AppColors.ink)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('رحلة من ${(m['riderName'] ?? 'مستخدم').toString()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              Text((m['riderName'] ?? 'مستخدم').toString(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               Text('${numD(m['distanceKm']).toStringAsFixed(1)} كم  •  ${numD(m['durationMin']).round()} دقيقة${toRider == null ? '' : '  •  ${toRider.toStringAsFixed(1)} كم إليه'}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ])),
             Text(money(numD(m['price'])), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),

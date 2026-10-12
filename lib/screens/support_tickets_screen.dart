@@ -1,11 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'ticket_chat_screen.dart';
 
 /// Live support inbox shared by rider/driver apps; tickets are stored at /tickets
 /// to match the existing admin dashboard schema.
@@ -40,7 +36,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
         'tickets/$id': {'uid':_uid,'role':widget.role,'title':title.text.trim(),'category':category.value,'status':'open','priority':'medium','createdAt':now,'updatedAt':now,'messages':{'m1':{'from':widget.role == 'driver' ? 'driver' : 'user','uid':_uid,'text':body.text.trim(),'createdAt':now}}},
         'userTickets/${_uid}/$id': true,
       });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال التذكرة بنجاح')));
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال التذكرة بنجاح'))); await Navigator.push(context, MaterialPageRoute(builder: (_) => TicketChatScreen(ticketId: id, role: widget.role))); }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال التذكرة: ${e.toString().replaceFirst('Exception: ', '')}')));
     } finally {
@@ -50,49 +46,16 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
     }
   }
 
-  Future<Map<String, String>?> _pickAndUploadAttachment() async {
-    if (_uid == null) return null;
-    try {
-      final choice = await showModalBottomSheet<String>(context: context, builder: (ctx) => SafeArea(child: Wrap(children: [
-        ListTile(leading: const Icon(Icons.photo_library), title: const Text('اختيار صورة'), onTap: () => Navigator.pop(ctx, 'gallery')),
-        ListTile(leading: const Icon(Icons.camera_alt), title: const Text('التقاط صورة'), onTap: () => Navigator.pop(ctx, 'camera')),
-        ListTile(leading: const Icon(Icons.attach_file), title: const Text('اختيار ملف'), onTap: () => Navigator.pop(ctx, 'file')),
-      ])));
-      if (choice == null) return null;
-      String name; String contentType = 'application/octet-stream'; late final List<int> bytes;
-      if (choice == 'gallery' || choice == 'camera') {
-        final picker = ImagePicker();
-        final XFile? file = choice == 'camera' ? await picker.pickImage(source: ImageSource.camera, imageQuality: 82) : await picker.pickImage(source: ImageSource.gallery, imageQuality: 82);
-        if (file == null) return null;
-        name = file.name; bytes = await file.readAsBytes(); contentType = 'image/jpeg';
-      } else {
-        final result = await FilePicker.platform.pickFiles(withData: true, type: FileType.any);
-        if (result == null || result.files.single.bytes == null) return null;
-        final f = result.files.single; name = f.name; bytes = f.bytes!;
-        if (bytes.length > 12 * 1024 * 1024) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الحد الأقصى لحجم الملف 12 ميجابايت'))); return null; }
-        contentType = 'application/octet-stream';
-      }
-      final safeName = name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final ref = FirebaseStorage.instance.ref('support_attachments/$_uid/${DateTime.now().millisecondsSinceEpoch}_$safeName');
-      await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: contentType));
-      return {'url': await ref.getDownloadURL(), 'name': name};
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر رفع المرفق. تحقق من صلاحيات Firebase Storage.')));
-      return null;
-    }
-  }
-
   Future<void> _reply(String id, Map<String,dynamic> ticket) async {
     final c = TextEditingController();
-    Map<String, String>? attachment;
     final ok = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (ctx) => Padding(
       padding: EdgeInsets.fromLTRB(16,16,16,MediaQuery.of(ctx).viewInsets.bottom+16),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [Text('الرد على: ${ticket['title'] ?? 'الدعم'}',style: Theme.of(ctx).textTheme.titleMedium), TextField(controller:c, autofocus:true, maxLength:1000, maxLines:4, decoration:const InputDecoration(hintText:'اكتب رسالتك')), const SizedBox(height:8), StatefulBuilder(builder: (ctx2, setSheet) => Row(children: [IconButton(tooltip: 'إرفاق صورة أو ملف', onPressed: () async { final a = await _pickAndUploadAttachment(); if (a != null) setSheet(() => attachment = a); }, icon: const Icon(Icons.attach_file)), Expanded(child: Text(attachment?['name'] ?? 'إرفاق صورة أو ملف', maxLines: 1, overflow: TextOverflow.ellipsis)), IconButton(tooltip: 'إرسال', onPressed:()=>Navigator.pop(ctx,true), icon: const Icon(Icons.send))]))]),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [Text('الرد على: ${ticket['title'] ?? 'الدعم'}',style: Theme.of(ctx).textTheme.titleMedium), TextField(controller:c, autofocus:true, maxLength:1000, maxLines:4, decoration:const InputDecoration(hintText:'اكتب رسالتك')), const SizedBox(height:8), SizedBox(width:double.infinity, child:FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('إرسال الرد')))]),
     ));
-    if (ok != true || (c.text.trim().isEmpty && attachment == null) || _uid == null) return;
+    if (ok != true || c.text.trim().isEmpty || _uid == null) return;
     if (ticket['status'] == 'closed') { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('التذكرة مغلقة؛ افتح تذكرة جديدة إذا استمرت المشكلة.'))); return; }
     try {
-      await _db.child('tickets/$id/messages').push().set({'from':widget.role == 'driver' ? 'driver' : 'user','uid':_uid,'text':c.text.trim(),'attachmentUrl':attachment?['url'],'attachmentName':attachment?['name'],'createdAt':ServerValue.timestamp});
+      await _db.child('tickets/$id/messages').push().set({'from':widget.role == 'driver' ? 'driver' : 'user','uid':_uid,'text':c.text.trim(),'createdAt':ServerValue.timestamp});
       await _db.child('tickets/$id/updatedAt').set(ServerValue.timestamp);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر إرسال الرد: ${e.toString().replaceFirst('Exception: ', '')}')));
@@ -121,9 +84,9 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
             messages.sort((a,b)=>((a['createdAt'] as num?)??0).compareTo((b['createdAt'] as num?)??0));
             final status=(ticket['status']??'open').toString();
             return Card(child:ExpansionTile(title:Text((ticket['title']??'تذكرة دعم').toString()),subtitle:Text('الحالة: ${status=='open'?'مفتوحة':status=='pending'?'قيد المعالجة':status=='closed'?'مغلقة':status} • ${messages.length} رسالة'),children:[
-              for(final m in messages) ListTile(dense:true,leading:Icon(m['from']=='admin'?Icons.support_agent:Icons.person_outline),title:Text((m['text']??'').toString()),subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(m['from']=='admin'?'الدعم الفني':'أنت'), if ((m['attachmentUrl'] ?? '').toString().startsWith('https://')) TextButton.icon(onPressed: () async { final u = Uri.tryParse(m['attachmentUrl'].toString()); if (u != null) await launchUrl(u, mode: LaunchMode.externalApplication); }, icon: const Icon(Icons.attach_file), label: Text((m['attachmentName'] ?? 'فتح المرفق').toString()))])),
-              if(status!='closed') Padding(padding:const EdgeInsets.all(12),child:Align(alignment:AlignmentDirectional.centerEnd,child:TextButton.icon(onPressed:()=>_reply(id,ticket),icon:const Icon(Icons.reply),label:const Text('فتح المحادثة / إرسال رسالة')))),
-              if(status=='closed') Padding(padding: const EdgeInsets.all(12), child: Column(children: [const Text('قيّم تجربة الدعم'), Wrap(alignment: WrapAlignment.center, children: [for (var stars=1; stars<=5; stars++) IconButton(icon: Icon(stars <= ((ticket['rating'] as num?)?.toInt() ?? 0) ? Icons.star : Icons.star_border, color: Colors.amber), onPressed: () async { await _db.child('tickets/$id/rating').set(stars); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('شكرًا لتقييمك'))); })])])),
+              for(final m in messages) ListTile(dense:true,leading:Icon(m['from']=='admin'?Icons.support_agent:Icons.person_outline),title:Text((m['text']??'').toString()),subtitle:Text(m['from']=='admin'?'الدعم الفني':'أنت')),
+              ListTile(leading:const Icon(Icons.forum_outlined),title:const Text('فتح المحادثة كاملة'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>TicketChatScreen(ticketId:id,role:widget.role)))),
+              if(status!='closed') Padding(padding:const EdgeInsets.all(12),child:Align(alignment:AlignmentDirectional.centerEnd,child:TextButton.icon(onPressed:()=>_reply(id,ticket),icon:const Icon(Icons.reply),label:const Text('الرد على التذكرة')))),
             ]));
           });
         });
