@@ -230,6 +230,8 @@ class RideService {
     await db.update({
       'tickets/$id': {
         'uid': uid,
+        'role': 'driver',
+        'ticketNumber': id.substring(id.length - 8).toUpperCase(),
         'title': title,
         'rideId': rideId ?? '',
         'status': 'open',

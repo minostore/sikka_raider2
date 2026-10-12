@@ -44,6 +44,7 @@ class _AppMapState extends State<AppMap> {
   @override
   Widget build(BuildContext context) {
     return Stack(children: [
+      const Positioned.fill(child: ColoredBox(color: Color(0xFFF1F4F6))),
       FlutterMap(
         mapController: widget.controller,
         options: MapOptions(
@@ -59,6 +60,7 @@ class _AppMapState extends State<AppMap> {
           TileLayer(
             urlTemplate: AppConfig.tileUrl,
             userAgentPackageName: AppConfig.packageName,
+            tileBuilder: (context, tileWidget, tile) => ColoredBox(color: const Color(0xFFF1F4F6), child: tileWidget),
             errorTileCallback: (tile, error, stack) {
               if (!_tileError && mounted) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {

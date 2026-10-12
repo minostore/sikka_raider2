@@ -33,7 +33,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
     final now = ServerValue.timestamp;
     try {
       await _db.update({
-        'tickets/$id': {'uid':_uid,'role':widget.role,'title':title.text.trim(),'category':category.value,'status':'open','priority':'medium','createdAt':now,'updatedAt':now,'messages':{'m1':{'from':widget.role == 'driver' ? 'driver' : 'user','uid':_uid,'text':body.text.trim(),'createdAt':now}}},
+        'tickets/$id': {'uid':_uid,'role':widget.role,'ticketNumber':id.substring(id.length-8).toUpperCase(),'title':title.text.trim(),'category':category.value,'status':'open','priority':'medium','createdAt':now,'updatedAt':now,'messages':{'m1':{'from':widget.role == 'driver' ? 'driver' : 'user','uid':_uid,'text':body.text.trim(),'createdAt':now}}},
         'userTickets/${_uid}/$id': true,
       });
       if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال التذكرة بنجاح'))); await Navigator.push(context, MaterialPageRoute(builder: (_) => TicketChatScreen(ticketId: id, role: widget.role))); }
@@ -53,7 +53,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
       child: Column(mainAxisSize: MainAxisSize.min, children: [Text('الرد على: ${ticket['title'] ?? 'الدعم'}',style: Theme.of(ctx).textTheme.titleMedium), TextField(controller:c, autofocus:true, maxLength:1000, maxLines:4, decoration:const InputDecoration(hintText:'اكتب رسالتك')), const SizedBox(height:8), SizedBox(width:double.infinity, child:FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('إرسال الرد')))]),
     ));
     if (ok != true || c.text.trim().isEmpty || _uid == null) return;
-    if (ticket['status'] == 'closed') { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('التذكرة مغلقة؛ افتح تذكرة جديدة إذا استمرت المشكلة.'))); return; }
+    if (['closed','resolved','escalated'].contains(ticket['status'])) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('التذكرة مغلقة؛ افتح تذكرة جديدة إذا استمرت المشكلة.'))); return; }
     try {
       await _db.child('tickets/$id/messages').push().set({'from':widget.role == 'driver' ? 'driver' : 'user','uid':_uid,'text':c.text.trim(),'createdAt':ServerValue.timestamp});
       await _db.child('tickets/$id/updatedAt').set(ServerValue.timestamp);
@@ -82,11 +82,11 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
             final ticket=Map<String,dynamic>.from(t); final messages=<Map<String,dynamic>>[]; final mm=ticket['messages'];
             if(mm is Map) for(final v in mm.values) { if(v is Map) messages.add(Map<String,dynamic>.from(v)); }
             messages.sort((a,b)=>((a['createdAt'] as num?)??0).compareTo((b['createdAt'] as num?)??0));
-            final status=(ticket['status']??'open').toString();
-            return Card(child:ExpansionTile(title:Text((ticket['title']??'تذكرة دعم').toString()),subtitle:Text('الحالة: ${status=='open'?'مفتوحة':status=='pending'?'قيد المعالجة':status=='closed'?'مغلقة':status} • ${messages.length} رسالة'),children:[
+            final status=(ticket['status']??'open').toString(); final statusLabel={'open':'مفتوحة','pending':'قيد المعالجة','resolved':'تم حل المشكلة','escalated':'تحتاج إلى الإدارة العامة','closed':'مغلقة'}[status]??status;
+            return Card(child:ExpansionTile(title:Text((ticket['title']??'تذكرة دعم').toString()),subtitle:Text('تذكرة #${ticket['ticketNumber']??id.substring(id.length-8).toUpperCase()} • الحالة: $statusLabel • ${messages.length} رسالة${ticket['assignedName']==null?'':' • ممثل الدعم: ${ticket['assignedName']}'}'),children:[
               for(final m in messages) ListTile(dense:true,leading:Icon(m['from']=='admin'?Icons.support_agent:Icons.person_outline),title:Text((m['text']??'').toString()),subtitle:Text(m['from']=='admin'?'الدعم الفني':'أنت')),
               ListTile(leading:const Icon(Icons.forum_outlined),title:const Text('فتح المحادثة كاملة'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>TicketChatScreen(ticketId:id,role:widget.role)))),
-              if(status!='closed') Padding(padding:const EdgeInsets.all(12),child:Align(alignment:AlignmentDirectional.centerEnd,child:TextButton.icon(onPressed:()=>_reply(id,ticket),icon:const Icon(Icons.reply),label:const Text('الرد على التذكرة')))),
+              if(!['closed','resolved','escalated'].contains(status)) Padding(padding:const EdgeInsets.all(12),child:Align(alignment:AlignmentDirectional.centerEnd,child:TextButton.icon(onPressed:()=>_reply(id,ticket),icon:const Icon(Icons.reply),label:const Text('الرد على التذكرة')))),
             ]));
           });
         });

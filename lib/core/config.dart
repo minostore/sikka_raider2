@@ -9,7 +9,7 @@ class AppConfig {
   static const packageName = 'com.sikka.driver';
   static const userAgent = 'MishwarApp/1.0 ($packageName)';
   // مصدر بلاطات OpenStreetMap. يجب الالتزام بسياسة الاستخدام وإظهار الإسناد.
-  static const tileUrl = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
+  static const tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const defaultCenter = LatLng(30.0444, 31.2357);
   static const nearbyRadiusKm = 8.0;
 }

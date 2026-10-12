@@ -12,6 +12,7 @@ import '../services/location_service.dart';
 import '../services/zone_service.dart';
 import '../widgets/app_map.dart';
 import '../widgets/common.dart';
+import '../widgets/app_update_banner.dart';
 import 'request_details_screen.dart';
 import 'notifications_screen.dart';
 import 'support_tickets_screen.dart';
@@ -27,17 +28,25 @@ class _DriverHomeState extends State<DriverHome> {
   bool _online = false, _busy = false;
   final Set<String> _hidden = {};
   Timer? _expiryTimer;
+  StreamSubscription<DatabaseEvent>? _offsetSub;
+  int _serverOffsetMs = 0;
+
+  int get _serverNowMs => DateTime.now().millisecondsSinceEpoch + _serverOffsetMs;
 
   @override
   void initState() {
     super.initState();
     LocationPublisher.stop(); // يبدأ دائماً غير متصل
     db.child('drivers/$myUid/online').set(false).catchError((_) {});
+    _offsetSub = db.child('.info/serverTimeOffset').onValue.listen((event) {
+      final value = event.snapshot.value;
+      if (value is num && mounted) setState(() => _serverOffsetMs = value.toInt());
+    });
     _expiryTimer = Timer.periodic(const Duration(seconds: 1), (_) { if (mounted && _online) setState(() {}); });
   }
 
   @override
-  void dispose() { _expiryTimer?.cancel(); super.dispose(); }
+  void dispose() { _expiryTimer?.cancel(); _offsetSub?.cancel(); super.dispose(); }
 
   Future<void> _toggle(bool v) async {
     if (_busy) return;
@@ -103,6 +112,7 @@ class _DriverHomeState extends State<DriverHome> {
             IconButton(tooltip: 'الإشعارات', icon: const Icon(Icons.notifications_none, color: Colors.white), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
           ])),
           _toggleBar(),
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: AppUpdateBanner(role: 'driver')),
           Expanded(
             flex: 3,
             child: Padding(
@@ -133,12 +143,14 @@ class _DriverHomeState extends State<DriverHome> {
                 builder: (c, s) {
                   if (s.hasError) return const ErrorView('تعذر تحميل الطلبات. تحقق من اتصالك.');
                   if (!s.hasData) return const LoadingView();
-                  final now = DateTime.now().millisecondsSinceEpoch;
+                  final now = _serverNowMs;
                   final me = LocationPublisher.position.value;
                   final items = <MapEntry<String, Map<String, dynamic>>>[];
                   asMap(s.data!.snapshot.value).forEach((id, v) {
                     final m = asMap(v);
-                    if (_hidden.contains(id) || ((m['expiresAt'] as num?) ?? 0) < now) return;
+                    final createdAt = (m['createdAt'] as num?)?.toInt();
+                    final expiresAt = createdAt != null ? createdAt + const Duration(seconds: 60).inMilliseconds : ((m['expiresAt'] as num?)?.toInt() ?? 0);
+                    if (_hidden.contains(id) || expiresAt <= now) return;
                     final pk = Place.fromMap(asMap(m['pickup'])).point;
                     if (!ZoneService.allowed(pk)) return;
                     if (me != null && haversineKm(me, pk) > 15) return;

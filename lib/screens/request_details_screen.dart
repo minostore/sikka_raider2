@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import '../core/theme.dart';
@@ -30,15 +31,24 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
   bool _sent = false, _busy = false, _gone = false;
   Timer? _timer;
   StreamSubscription? _sub;
+  StreamSubscription<DatabaseEvent>? _offsetSub;
+  int _serverOffsetMs = 0;
   int _left = 0;
 
   @override
   void initState() {
     super.initState();
-    final exp = (widget.data['expiresAt'] as num?)?.toInt() ?? 0;
-    _left = ((exp - DateTime.now().millisecondsSinceEpoch) / 1000).round();
+    _offsetSub = db.child('.info/serverTimeOffset').onValue.listen((event) {
+      final value = event.snapshot.value;
+      if (value is num && mounted) setState(() => _serverOffsetMs = value.toInt());
+    });
+    int expiry() {
+      final created = (widget.data['createdAt'] as num?)?.toInt();
+      return created != null ? created + const Duration(seconds: 60).inMilliseconds : ((widget.data['expiresAt'] as num?)?.toInt() ?? 0);
+    }
+    _left = ((expiry() - DateTime.now().millisecondsSinceEpoch - _serverOffsetMs) / 1000).round();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() { final exp = (widget.data['expiresAt'] as num?)?.toInt() ?? 0; _left = ((exp - DateTime.now().millisecondsSinceEpoch) / 1000).ceil(); });
+      if (mounted) setState(() { _left = ((expiry() - DateTime.now().millisecondsSinceEpoch - _serverOffsetMs) / 1000).ceil(); });
     });
     _sub = db.child('openRequests/${widget.requestId}').onValue.listen((e) {
       if (!e.snapshot.exists && mounted) setState(() => _gone = true);
@@ -63,6 +73,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
   void dispose() {
     _timer?.cancel();
     _sub?.cancel();
+    _offsetSub?.cancel();
     super.dispose();
   }
 

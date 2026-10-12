@@ -338,6 +338,12 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                     Expanded(child: _cell('المسافة المتبقية', _route == null ? '—' : '${_route!.distanceKm.toStringAsFixed(1)} كم')),
                     Expanded(child: _cell('الوقت المتوقع', _route == null ? '—' : '${_route!.durationMin.round()} دقيقة')),
                   ]),
+                  const SizedBox(height: 6),
+                  Text('الراكب: ${r.riderName}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RideChatScreen(rideId: r.id))),
+                    icon: const Icon(Icons.chat_bubble_outline), label: const Text('محادثة مع الراكب'),
+                  )),
                   const SizedBox(height: 4),
                   Text('الوجهة: ${r.dest.address}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(height: 10),

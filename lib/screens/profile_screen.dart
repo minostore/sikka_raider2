@@ -4,6 +4,7 @@ import '../core/theme.dart';
 import '../core/utils.dart';
 import '../services/auth_service.dart';
 import '../services/driver_service.dart';
+import 'ticket_chat_screen.dart';
 import '../widgets/common.dart';
 import 'ratings_screen.dart';
 import 'support_tickets_screen.dart';
@@ -145,8 +146,8 @@ class SettingsScreen extends StatelessWidget {
     );
     if (ok == true && t.text.trim().isNotEmpty && m.text.trim().isNotEmpty) {
       try {
-        await DriverService.createTicket(t.text.trim(), m.text.trim());
-        if (context.mounted) showSnack(context, 'تم إرسال تذكرتك');
+        final ticketId = await DriverService.createTicket(t.text.trim(), m.text.trim());
+        if (context.mounted) await Navigator.push(context, MaterialPageRoute(builder: (_) => TicketChatScreen(ticketId: ticketId, role: 'driver')));
       } catch (_) {
         if (context.mounted) showSnack(context, 'تعذر الإرسال', error: true);
       }

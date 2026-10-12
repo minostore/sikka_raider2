@@ -104,6 +104,17 @@ class LocationPublisher {
 }
 
 class DriverService {
+  static Future<int> serverNowMs() async {
+    final localNow = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final value = (await db.child('.info/serverTimeOffset').get()).value;
+      final offset = value is num ? value.toInt() : 0;
+      return localNow + offset;
+    } catch (_) {
+      return localNow;
+    }
+  }
+
   static Future<double> commissionPercent() async {
     try {
       final v = (await db.child('settings/commissionPercent').get()).value;
@@ -152,16 +163,25 @@ class DriverService {
     if (!rideSnapshot.exists) throw Exception('الطلب غير موجود أو انتهت صلاحيته.');
     final ride = asMap(rideSnapshot.value);
     if (ride['status'] != 'requested') throw Exception('لم يعد هذا الطلب متاحاً لتقديم العروض.');
-    final expiresAt = (asMap((await db.child('openRequests/$rideId').get()).value)['expiresAt'] as num?)?.toInt();
-    if (expiresAt != null && expiresAt < DateTime.now().millisecondsSinceEpoch) {
-      throw Exception('انتهت صلاحية هذا الطلب.');
+    final request = asMap((await db.child('openRequests/$rideId').get()).value);
+    final createdAt = (request['createdAt'] as num?)?.toInt() ?? (ride['createdAt'] as num?)?.toInt();
+    final legacyExpiry = (request['expiresAt'] as num?)?.toInt();
+    final expiry = createdAt != null ? createdAt + const Duration(seconds: 60).inMilliseconds : legacyExpiry;
+    final serverNow = await serverNowMs();
+    if (expiry == null || expiry <= serverNow) {
+      throw Exception('انتهت مهلة استقبال العروض لهذا الطلب (60 ثانية).');
     }
+    final riderId = (ride['riderId'] ?? '').toString();
+    final blockedByMe = (await db.child('blocks/$myUid/$riderId').get()).exists;
+    final blockedMe = (await db.child('blocks/$riderId/$myUid').get()).exists;
+    if (blockedByMe || blockedMe) throw Exception('لا يمكن إرسال عرض بسبب إعدادات الحظر بين الحسابين.');
     final p = await profile();
     if (p['status'] != 'approved') throw Exception('يجب اعتماد حسابك قبل تقديم عروض الرحلات.');
     final r = await ratings();
     final v = asMap(p['vehicle']);
     await db.child('rides/$rideId/offers/$myUid').set({
       'name': p['name'] ?? '',
+      'photoUrl': p['photoUrl'] ?? p['photoURL'] ?? p['avatarUrl'] ?? '',
       'phone': p['phone'] ?? '',
       'rating': double.parse(r.avg.toStringAsFixed(1)),
       'trips': (p['tripsCount'] as num?)?.toInt() ?? 0,
@@ -178,21 +198,24 @@ class DriverService {
   static Future<void> withdrawOffer(String rideId) =>
       db.child('rides/$rideId/offers/$myUid').remove();
 
-  static Future<void> createTicket(String title, String message) async {
+  static Future<String> createTicket(String title, String message) async {
     final id = db.child('tickets').push().key!;
     await db.update({
       'tickets/$id': {
         'uid': myUid,
+        'ticketNumber': id.substring(id.length - 8).toUpperCase(),
         'title': title,
         'role': 'driver',
         'status': 'open',
         'priority': 'medium',
         'createdAt': ServerValue.timestamp,
+        'updatedAt': ServerValue.timestamp,
         'messages': {
-          'm1': {'from': 'user', 'text': message, 'createdAt': ServerValue.timestamp}
+          'm1': {'from': 'driver', 'uid': myUid, 'text': message, 'createdAt': ServerValue.timestamp}
         },
       },
       'userTickets/$myUid/$id': true,
     });
+    return id;
   }
 }
