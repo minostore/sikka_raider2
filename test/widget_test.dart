@@ -8,14 +8,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ابدأ معنا يا كابتن'), findsOneWidget);
-    for (var i = 0; i < 3; i++) {
-      await tester.tap(find.text('التالي'));
-      await tester.pumpAndSettle();
-    }
+    await tester.tap(find.text('التالي'));
+    await tester.pumpAndSettle();
+    expect(find.text('اختار رحلتك'), findsOneWidget);
+    await tester.tap(find.text('التالي'));
+    await tester.pumpAndSettle();
+    expect(find.text('اقبل الرحلة واعرف تفاصيلها'), findsOneWidget);
+    await tester.tap(find.text('التالي'));
+    await tester.pumpAndSettle();
     expect(find.text('أكمل الرحلة بثقة'), findsOneWidget);
     await tester.tap(find.text('ابدأ معنا'));
     await tester.pumpAndSettle();
-    expect(find.text('مرحباً بعودتك'), findsOneWidget);
+    expect(find.text('سائق جديد؟ سجّل الآن'), findsOneWidget);
   });
 
   testWidgets('skip opens login directly', (tester) async {
@@ -23,6 +27,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('تخطي'));
     await tester.pumpAndSettle();
-    expect(find.text('مرحباً بعودتك'), findsOneWidget);
+    expect(find.text('سائق جديد؟ سجّل الآن'), findsOneWidget);
   });
 }
