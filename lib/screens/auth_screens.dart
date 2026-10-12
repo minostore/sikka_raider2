@@ -239,7 +239,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_pass.text.length < 6) {
       return showSnack(context, 'كلمة المرور 6 أحرف على الأقل', error: true);
     }
-    if (widget.withCity && _city == null) return showSnack(context, 'اختر المدينة', error: true);
+    
     if (!_agree) return showSnack(context, 'يجب الموافقة على الشروط والأحكام', error: true);
     setState(() => _busy = true);
     try {

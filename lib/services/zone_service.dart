@@ -27,7 +27,7 @@ class ServiceZone {
 }
 
 /// مناطق الخدمة التي ترسمها الإدارة من لوحة التحكم.
-/// إن لم توجد أي منطقة مفعّلة فالخدمة متاحة في كل مكان.
+/// لا تُتاح الخدمة إلا داخل منطقة فعّالة محددة من الإدارة.
 class ZoneService {
   static final ValueNotifier<List<ServiceZone>> zones = ValueNotifier([]);
   static StreamSubscription? _sub;
@@ -67,8 +67,8 @@ class ZoneService {
 
   static List<ServiceZone> get active =>
       zones.value.where((z) => z.active && z.points.length >= 3).toList();
-  static bool get restricted => active.isNotEmpty;
-  static bool allowed(LatLng p) => !restricted || active.any((z) => z.contains(p));
+  static bool get restricted => true;
+  static bool allowed(LatLng p) => active.isNotEmpty && active.any((z) => z.contains(p));
   static double surgeAt(LatLng p) {
     var s = 0.0;
     for (final z in active) {

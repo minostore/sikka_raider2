@@ -12,6 +12,8 @@ import '../services/zone_service.dart';
 import '../widgets/app_map.dart';
 import '../widgets/common.dart';
 import 'request_details_screen.dart';
+import 'notifications_screen.dart';
+import 'support_tickets_screen.dart';
 
 class DriverHome extends StatefulWidget {
   const DriverHome({super.key});
@@ -36,6 +38,14 @@ class _DriverHomeState extends State<DriverHome> {
     setState(() => _busy = true);
     try {
       if (v) {
+        final driver = asMap((await db.child('drivers/$myUid').get()).value);
+        final status = (driver['status'] ?? '').toString();
+        final vehicleReview = (driver['vehicleReviewStatus'] ?? 'approved').toString();
+        if (!['approved', 'active'].contains(status) || vehicleReview == 'pending') {
+          if (mounted) showSnack(context, 'لا يمكنك استقبال الرحلات قبل مراجعة واعتماد بياناتك والمركبة من الإدارة.', error: true);
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
         final p = await LocationService.current(); // يتحقق من GPS والصلاحيات
         if (!ZoneService.allowed(p)) {
           if (mounted) showSnack(context, 'موقعك الحالي خارج نطاق الخدمة، لا يمكنك استقبال الرحلات من هنا.', error: true);
@@ -79,10 +89,13 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   Widget build(BuildContext context) => SafeArea(
         child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 14),
-            child: Text(_online ? 'متاح للرحلات' : 'غير متصل', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
-          ),
+          Padding(padding: const EdgeInsets.fromLTRB(12, 6, 12, 0), child: Row(children: [
+            IconButton(tooltip: 'خدمة العملاء', icon: const Icon(Icons.support_agent, color: Colors.white), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportTicketsScreen(role: 'driver')))),
+            const Spacer(),
+            Text(_online ? 'متاح للرحلات' : 'غير متصل', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+            const Spacer(),
+            IconButton(tooltip: 'الإشعارات', icon: const Icon(Icons.notifications_none, color: Colors.white), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
+          ])),
           _toggleBar(),
           Expanded(
             flex: 3,
@@ -121,6 +134,7 @@ class _DriverHomeState extends State<DriverHome> {
                     final m = asMap(v);
                     if (_hidden.contains(id) || ((m['expiresAt'] as num?) ?? 0) < now) return;
                     final pk = Place.fromMap(asMap(m['pickup'])).point;
+                    if (!ZoneService.allowed(pk)) return;
                     if (me != null && haversineKm(me, pk) > 15) return;
                     items.add(MapEntry(id, m));
                   });
@@ -156,7 +170,7 @@ class _DriverHomeState extends State<DriverHome> {
             const CircleAvatar(radius: 22, backgroundColor: Color(0xFFE9F1F5), child: Icon(Icons.person, color: AppColors.ink)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('طلب رحلة جديد', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              Text('رحلة من ${(m['riderName'] ?? 'مستخدم').toString()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               Text('${numD(m['distanceKm']).toStringAsFixed(1)} كم  •  ${numD(m['durationMin']).round()} دقيقة${toRider == null ? '' : '  •  ${toRider.toStringAsFixed(1)} كم إليه'}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ])),
             Text(money(numD(m['price'])), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),

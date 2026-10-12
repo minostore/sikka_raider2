@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/driver_service.dart';
 import '../widgets/common.dart';
 import 'ratings_screen.dart';
+import 'support_tickets_screen.dart';
 import 'splash_gate.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -52,6 +53,7 @@ class ProfileScreen extends StatelessWidget {
                 _row(context, Icons.person_outline, 'المعلومات الشخصية', () => Navigator.push(context, MaterialPageRoute(builder: (_) => _InfoScreen(m)))),
                 _row(context, Icons.directions_car_outlined, 'المركبة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => VehicleScreen(m)))),
                 _row(context, Icons.star_outline, 'التقييمات', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RatingsScreen()))),
+                _row(context, Icons.support_agent, 'الدعم الفني وتذاكري', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportTicketsScreen(role: 'driver')))),
                 _row(context, Icons.settings_outlined, 'الإعدادات', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
               ]),
             );
@@ -94,9 +96,9 @@ class VehicleScreen extends StatelessWidget {
       ),
     );
     if (ok == true && ctl.values.every((c) => c.text.trim().isNotEmpty)) {
-      await db.child('drivers/$myUid/vehicle').set({for (final e in ctl.entries) e.key: e.value.text.trim()});
+      await db.update({'drivers/$myUid/vehicle': {for (final e in ctl.entries) e.key: e.value.text.trim()}, 'drivers/$myUid/vehicleReviewStatus': 'pending', 'drivers/$myUid/status': 'pending', 'drivers/$myUid/online': false, 'onlineDrivers/$myUid': null});
       if (context.mounted) {
-        showSnack(context, 'تم حفظ بيانات المركبة');
+        showSnack(context, 'تم إرسال بيانات المركبة الجديدة للمراجعة. لن تتمكن من استقبال رحلات حتى اعتمادها.');
         Navigator.pop(context);
       }
     }
@@ -118,7 +120,9 @@ class VehicleScreen extends StatelessWidget {
             const SizedBox(height: 10),
             Container(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8), decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFDDE5EA))), child: Text('${v['plate'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))),
             const SizedBox(height: 16),
-            AppButton('تعديل البيانات', onPressed: () => _edit(context, v)),
+            Text('حالة المراجعة: ${m['vehicleReviewStatus'] == 'pending' ? 'قيد المراجعة' : 'معتمدة'}', style: TextStyle(color: m['vehicleReviewStatus'] == 'pending' ? AppColors.orange : AppColors.green)),
+            const SizedBox(height: 10),
+            AppButton('تعديل البيانات وإرسالها للمراجعة', onPressed: () => _edit(context, v)),
           ]),
         ),
       ]),

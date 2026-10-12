@@ -185,7 +185,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!AuthService.isValidPhone(_phone.text)) return showSnack(context, 'أدخل رقم موبايل مصري صحيح (مثال: 01012345678)', error: true);
     if (_email.text.isNotEmpty && !_email.text.contains('@')) return showSnack(context, 'البريد الإلكتروني غير صحيح', error: true);
     if (_pass.text.length < 6) return showSnack(context, 'كلمة المرور 6 أحرف على الأقل', error: true);
-    if (_city == null) return showSnack(context, 'اختر المدينة', error: true);
     setState(() => _busy = true);
     try {
       await AuthService.register(name: _name.text.trim(), phone: _phone.text, email: _email.text.trim(), password: _pass.text, city: _city);
@@ -217,7 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               initialValue: _city,
               dropdownColor: const Color(0xFF173B5A),
               style: const TextStyle(color: Colors.white),
-              decoration: fieldDec(context, 'المدينة', Icons.location_city),
+              decoration: fieldDec(context, 'المدينة (اختياري)', Icons.location_city),
               items: cities.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: (v) => setState(() => _city = v),
             ),
