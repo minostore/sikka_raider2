@@ -54,6 +54,8 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
       - name: تجهيز منصات Android/iOS
         run: bash tool/setup_platforms.sh
+      - name: تهيئة مشروع Android وترحيل Gradle قبل ضبط SDK
+        run: flutter build apk --release --target-platform android-arm64 --config-only
       - name: فرض Android compileSdk 36 والتحقق منه
         shell: bash
         run: |
