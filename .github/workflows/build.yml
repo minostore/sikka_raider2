@@ -30,6 +30,8 @@ jobs:
         run: bash tool/setup_platforms.sh
       - name: تحليل الكود
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: اختبارات Flutter
+        run: flutter test
       - name: بناء APK
         run: flutter build apk --release --target-platform android-arm64
       - uses: actions/upload-artifact@v4
