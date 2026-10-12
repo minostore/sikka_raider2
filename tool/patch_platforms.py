@@ -4,7 +4,7 @@ import re, sys, glob, pathlib
 
 PKG = sys.argv[1]
 ROLE = "driver"
-APP_LABEL = "sikka rider"
+APP_LABEL = "Sikka Driver"
 
 # ---------- Android ----------
 mf = pathlib.Path("android/app/src/main/AndroidManifest.xml")

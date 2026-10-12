@@ -24,7 +24,7 @@ class MishwarDriverApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'sikka rider',
+        title: 'Sikka Driver',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
         locale: const Locale('ar'),

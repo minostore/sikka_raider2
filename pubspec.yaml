@@ -1,5 +1,5 @@
-name: sikka_rider
-description: "sikka rider - تطبيق السائق - Flutter (Android + iOS)"
+name: sikka_driver
+description: "Sikka Driver - تطبيق السائق - Flutter (Android + iOS)"
 publish_to: 'none'
 version: 1.0.0+1
 

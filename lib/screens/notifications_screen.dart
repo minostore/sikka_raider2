@@ -25,16 +25,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _subs.add(_db.child('notifications/$_uid').onValue.listen((e) {
       if (!mounted) return;
       setState(() {
-        _mine = asMap(e.snapshot.value).map((k, v) => MapEntry(k, asMap(v)));
+        _mine = asMap(e.snapshot.value).map((k, v) => MapEntry(k, {...asMap(v), '_id': k}));
         _loaded = true;
       });
-    }, onError: (_) => setState(() => _loaded = true)));
+    }, onError: (_) {
+      if (mounted) setState(() => _loaded = true);
+    }));
     _subs.add(_db.child('broadcasts').onValue.listen((e) {
       if (!mounted) return;
       setState(() => _broadcasts = asMap(e.snapshot.value)
           .values
           .map((v) => asMap(v))
-          .where((m) => m['audience'] == 'all' || m['audience'] == 'riders')
+          .where((m) => m['audience'] == 'all' || m['audience'] == 'drivers')
           .toList());
     }, onError: (_) {}));
   }
@@ -47,12 +49,38 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.dispose();
   }
 
+  Future<void> _markRead(Map<String, dynamic> item) async {
+    if (item['_p'] != true || item['read'] == true) return;
+    final id = (item['_id'] ?? '').toString();
+    if (id.isEmpty) return;
+    try {
+      await _db.child('notifications/$_uid/$id/read').set(true);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر تحديث الإشعار. حاول مرة أخرى.')),
+      );
+    }
+  }
+
   Future<void> _readAll() async {
     final up = <String, Object?>{};
     _mine.forEach((k, v) {
       if (v['read'] != true) up['notifications/$_uid/$k/read'] = true;
     });
-    if (up.isNotEmpty) await _db.update(up);
+    if (up.isEmpty) return;
+    try {
+      await _db.update(up);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديد الإشعارات كمقروءة')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر تحديث الإشعارات. حاول مرة أخرى.')),
+      );
+    }
   }
 
   @override
@@ -80,6 +108,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       title: Text((n['title'] ?? '').toString()),
                       subtitle: Text('${n['body'] ?? n['message'] ?? ''}\n${timeAgo((n['createdAt'] as num?)?.toInt())}'),
                       isThreeLine: true,
+                      onTap: () => _markRead(n),
+                      tileColor: unread ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.04) : null,
                     );
                   },
                 ),
