@@ -31,13 +31,30 @@ class ServiceZone {
 class ZoneService {
   static final ValueNotifier<List<ServiceZone>> zones = ValueNotifier([]);
   static StreamSubscription? _sub;
+  static bool _loaded = false;
+  static Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    try {
+      final snapshot = await FirebaseDatabase.instance.ref('zones').get();
+      _apply(snapshot.value);
+      _loaded = true;
+    } catch (_) {
+      // Fail closed: without a confirmed service-zone list, rides stay disabled.
+    }
+  }
   static const outsideMessage = 'الموقع المحدد خارج نطاق الخدمة أو غير متاح حالياً.';
 
   static void start() {
     if (_sub != null) return;
     _sub = FirebaseDatabase.instance.ref('zones').onValue.listen((e) {
+      _apply(e.snapshot.value);
+      _loaded = true;
+    }, onError: (_) {});
+  }
+
+  static void _apply(Object? value) {
       final out = <ServiceZone>[];
-      asMap(e.snapshot.value).forEach((id, v) {
+      asMap(value).forEach((id, v) {
         final m = asMap(v);
         final rawPoints = m['points'];
         final list = <LatLng>[];
@@ -62,7 +79,6 @@ class ZoneService {
         out.add(ServiceZone(id, (m['name'] ?? '').toString(), list, m['active'] != false, numD(m['surgePercent'])));
       });
       zones.value = out;
-    }, onError: (_) {});
   }
 
   static List<ServiceZone> get active =>

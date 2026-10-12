@@ -24,13 +24,24 @@ class DriverHome extends StatefulWidget {
 class _DriverHomeState extends State<DriverHome> {
   final _map = MapController();
   bool _online = false, _busy = false;
+  LatLng? _currentPosition;
   final Set<String> _hidden = {};
 
   @override
   void initState() {
     super.initState();
     LocationPublisher.stop(); // يبدأ دائماً غير متصل
+    _loadCurrentPosition();
     db.child('drivers/$myUid/online').set(false).catchError((_) {});
+  }
+
+  Future<void> _loadCurrentPosition() async {
+    try {
+      final p = await LocationService.current();
+      if (!mounted) return;
+      setState(() => _currentPosition = p);
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _map.move(p, 15); });
+    } catch (_) { /* permission prompt is shown when driver enables availability */ }
   }
 
   Future<void> _toggle(bool v) async {
@@ -47,6 +58,7 @@ class _DriverHomeState extends State<DriverHome> {
           return;
         }
         final p = await LocationService.current(); // يتحقق من GPS والصلاحيات
+        await ZoneService.ensureLoaded();
         if (!ZoneService.allowed(p)) {
           if (mounted) showSnack(context, 'موقعك الحالي خارج نطاق الخدمة، لا يمكنك استقبال الرحلات من هنا.', error: true);
           if (mounted) setState(() => _busy = false);
@@ -105,16 +117,15 @@ class _DriverHomeState extends State<DriverHome> {
                 borderRadius: BorderRadius.circular(20),
                 child: ValueListenableBuilder<LatLng?>(
                   valueListenable: LocationPublisher.position,
-                  builder: (_, p, __) => AppMap(
+                  builder: (_, p, __) { final point = p ?? _currentPosition; return AppMap(
                     controller: _map,
-                    center: p ?? AppConfig.defaultCenter,
+                    center: point ?? AppConfig.defaultCenter,
                     zoom: 15,
-                    markers: [if (p != null) _pulse(p)],
+                    markers: [if (point != null) _pulse(point)],
                     onRecenter: () {
-                      final q = LocationPublisher.position.value;
-                      if (q != null) _map.move(q, 15);
+                      _loadCurrentPosition();
                     },
-                  ),
+                  ); },
                 ),
               ),
             ),
