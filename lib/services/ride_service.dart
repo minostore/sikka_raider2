@@ -42,13 +42,29 @@ class RideService {
   static Future<Map<String, double>> pricing() async {
     try {
       final m = asMap((await db.child('settings/pricing').get()).value);
+      final perKm = numD(m['perKm'], 5);
+      final veh = asMap(m['vehicles']);
+      double rate(String k) {
+        final v = numD(asMap(veh[k])['perKm'], perKm);
+        return v > 0 ? v : perKm;
+      }
       return {
         'base': numD(m['base'], 15),
-        'perKm': numD(m['perKm'], 5),
+        'perKm': perKm,
         'minFare': numD(m['minFare'], 25),
+        'perKm_car': rate('car'),
+        'perKm_motorcycle': rate('motorcycle'),
+        'perKm_tuktuk': rate('tuktuk'),
       };
     } catch (_) {
-      return {'base': 15, 'perKm': 5, 'minFare': 25};
+      return {
+        'base': 15,
+        'perKm': 5,
+        'minFare': 25,
+        'perKm_car': 5,
+        'perKm_motorcycle': 5,
+        'perKm_tuktuk': 5,
+      };
     }
   }
 

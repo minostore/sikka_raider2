@@ -25,7 +25,14 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   final _price = TextEditingController();
   final _note = TextEditingController();
   RouteInfo? _route;
-  Map<String, double> _pricing = {'base': 15, 'perKm': 5, 'minFare': 25};
+  Map<String, double> _pricing = {
+    'base': 15,
+    'perKm': 5,
+    'minFare': 25,
+    'perKm_car': 5,
+    'perKm_motorcycle': 5,
+    'perKm_tuktuk': 5,
+  };
   String _vehicle = 'regular';
   bool _loading = true;
   bool _busy = false;
@@ -57,9 +64,22 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  String _perKmKey(String v) {
+    switch (v) {
+      case 'motorcycle':
+        return 'perKm_motorcycle';
+      case 'tuktuk':
+        return 'perKm_tuktuk';
+      default:
+        return 'perKm_car'; // regular / family
+    }
+  }
+
   void _suggest() {
     final km = _route?.distanceKm ?? 0;
-    var p = _pricing['base']! + _pricing['perKm']! * km;
+    // سعر الكيلومتر لكل وسيلة يأتي من لوحة التحكم (settings/pricing/vehicles)
+    final perKm = _pricing[_perKmKey(_vehicle)] ?? _pricing['perKm']!;
+    var p = _pricing['base']! + perKm * km;
     if (_vehicle == 'family') p *= 1.3;
     p = max(p, _pricing['minFare']!);
     _price.text = p.round().toString();
@@ -146,10 +166,19 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                     const SizedBox(height: 12),
                     const Text('نوع المركبة', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 6),
-                    Row(children: [
-                      Expanded(child: _vehicleChip('regular', 'عادية', Icons.directions_car)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _vehicleChip('family', 'عائلية', Icons.airport_shuttle)),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      SizedBox(
+                          width: (MediaQuery.of(context).size.width - 32) / 2,
+                          child: _vehicleChip('regular', 'سيارة', Icons.directions_car)),
+                      SizedBox(
+                          width: (MediaQuery.of(context).size.width - 32) / 2,
+                          child: _vehicleChip('family', 'عائلية', Icons.airport_shuttle)),
+                      SizedBox(
+                          width: (MediaQuery.of(context).size.width - 32) / 2,
+                          child: _vehicleChip('motorcycle', 'دراجة نارية', Icons.two_wheeler)),
+                      SizedBox(
+                          width: (MediaQuery.of(context).size.width - 32) / 2,
+                          child: _vehicleChip('tuktuk', 'توكتوك', Icons.electric_rickshaw)),
                     ]),
                     const SizedBox(height: 12),
                     TextField(
