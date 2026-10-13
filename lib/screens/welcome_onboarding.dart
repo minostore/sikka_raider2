@@ -23,7 +23,58 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
     _welcomeImages = _loadWelcomeImages();
   }
 
+  List<_SlideData> _slides = _defaults;
+
+  static List<Map<String, dynamic>> _slideEntries(dynamic raw) {
+    final out = <Map<String, dynamic>>[];
+    if (raw is List) {
+      for (final e in raw) {
+        out.add(e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{});
+      }
+    } else if (raw is Map) {
+      final keys = raw.keys.map((k) => int.tryParse(k.toString()) ?? -1).where((k) => k >= 0).toList()..sort();
+      if (keys.isNotEmpty) {
+        for (var i = 0; i <= keys.last; i++) {
+          final e = raw['$i'];
+          out.add(e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{});
+        }
+      }
+    }
+    return out;
+  }
+
+  /// شرائح الترحيب من لوحة التحكم (عدد غير محدود): صورة + عنوان + نص لكل شريحة، وإلا تُستخدم الافتراضية.
   Future<List<String?>> _loadWelcomeImages() async {
+    try {
+      final snap = await FirebaseDatabase.instance.ref('settings/welcome').once();
+      final value = snap.snapshot.value;
+      final welcome = value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+      final entries = _slideEntries(welcome['driverSlides']);
+      if (entries.isEmpty) return _loadLegacyImages();
+      final slides = <_SlideData>[];
+      final urls = <String?>[];
+      for (var i = 0; i < entries.length; i++) {
+        final e = entries[i];
+        final base = i < _defaults.length ? _defaults[i] : null;
+        final title = (e['title'] ?? '').toString().trim();
+        final subtitle = (e['subtitle'] ?? '').toString().trim();
+        final image = (e['image'] ?? '').toString();
+        slides.add(_SlideData(title.isNotEmpty ? title : (base?.title ?? ''), subtitle.isNotEmpty ? subtitle : (base?.subtitle ?? ''), base?.icon ?? Icons.directions_car_filled_rounded, base?.tag ?? 'سِكّة', base?.image ?? ''));
+        urls.add(image.startsWith('https://') ? image : null);
+      }
+      if (mounted) {
+        setState(() {
+          _slides = slides;
+          if (_index >= slides.length) _index = 0;
+        });
+      }
+      return urls;
+    } catch (_) {
+      return _loadLegacyImages();
+    }
+  }
+
+  Future<List<String?>> _loadLegacyImages() async {
     try {
       final s = await FirebaseDatabase.instance.ref('settings/welcome').once();
       final v = s.snapshot.value;
@@ -52,7 +103,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
     }
   }
 
-  static const _slides = <_SlideData>[
+  static const _defaults = <_SlideData>[
     _SlideData(
       'رحلتك .. بأسهل طريقة',
       'اترك وجهتك علينا، ونوصلك بأمان وسرعة مع أفضل السائقين في مدينتك.',

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../services/driver_service.dart';
+import '../services/local_notify.dart';
+import '../services/ride_alerts.dart';
 import '../services/zone_service.dart';
 import 'active_ride_screen.dart';
 import 'driver_home.dart';
@@ -24,6 +26,8 @@ class _DriverShellState extends State<DriverShell> {
   void initState() {
     super.initState();
     ZoneService.start();
+    LocalNotify.startListening();
+    RideAlerts.start();
     // يفتح شاشة الرحلة تلقائياً عندما يختار الراكب عرض السائق
     _sub = db.child('driverActive/$myUid').onValue.listen((e) {
       final id = e.snapshot.value?.toString();
@@ -41,6 +45,8 @@ class _DriverShellState extends State<DriverShell> {
   @override
   void dispose() {
     _sub?.cancel();
+    RideAlerts.stop();
+    LocalNotify.stopListening();
     super.dispose();
   }
 

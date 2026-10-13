@@ -360,21 +360,6 @@ class _TrackingViewState extends State<_TrackingView> {
               Text(money(r.finalPrice),
                   style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
             ]),
-            if (r.status == 'accepted' || r.status == 'arrived')
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  const Icon(Icons.pin, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('رمز بدء الرحلة (أخبره للسائق عند الركوب):')),
-                  Text(r.startCode ?? '----',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 4)),
-                ]),
-              ),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(child: OutlinedButton.icon(onPressed: () => _openCall(context, r.driverPhone ?? ''), icon: const Icon(Icons.call), label: const Text('اتصال'))),

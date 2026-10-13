@@ -41,7 +41,7 @@ class LocationPublisher {
     } catch (_) {}
     db.child('onlineDrivers/$uid').onDisconnect().remove();
     db.child('driverLocations/$uid').onDisconnect().remove();
-    _sub = LocationService.stream(distanceFilter: 8).listen((p) {
+    _sub = LocationService.stream(distanceFilter: 8, foreground: true).listen((p) {
       position.value = LatLng(p.latitude, p.longitude);
       if (p.heading >= 0) _heading = p.heading;
       _publish();

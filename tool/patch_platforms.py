@@ -26,6 +26,16 @@ if "<queries>" not in s:
 </manifest>""")
 mf.write_text(s, encoding="utf-8")
 
+# صلاحيات الإشعارات والخدمة الأمامية
+_extra = ["android.permission.POST_NOTIFICATIONS", "android.permission.VIBRATE", "android.permission.WAKE_LOCK"]
+if ROLE == "driver":
+    _extra += ["android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_LOCATION"]
+s = mf.read_text(encoding="utf-8")
+for _p in _extra:
+    if _p not in s:
+        s = s.replace("<application", '    <uses-permission android:name="%s" />\n    <application' % _p, 1)
+mf.write_text(s, encoding="utf-8")
+
 for g in glob.glob("android/app/build.gradle*"):
     p = pathlib.Path(g); t = p.read_text(encoding="utf-8")
     # Android API 36 is required by flutter_plugin_android_lifecycle / file_picker.
@@ -47,6 +57,21 @@ for g in glob.glob("android/app/build.gradle*"):
     t = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 23', t)
     t = re.sub(r'applicationId\s*=\s*"[^"]*"', 'applicationId = "%s"' % PKG, t)
     t = re.sub(r'applicationId\s+"[^"]*"', 'applicationId "%s"' % PKG, t)
+    # flutter_local_notifications يتطلب core library desugaring
+    if g.endswith(".kts"):
+        if "isCoreLibraryDesugaringEnabled" not in t:
+            t, n = re.subn(r"(compileOptions\s*\{)", r"\1\n        isCoreLibraryDesugaringEnabled = true", t, count=1)
+            if n == 0:
+                raise SystemExit("ERROR: compileOptions block not found in " + str(p))
+        if "coreLibraryDesugaring(" not in t:
+            t += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+    else:
+        if "coreLibraryDesugaringEnabled" not in t:
+            t, n = re.subn(r"(compileOptions\s*\{)", r"\1\n        coreLibraryDesugaringEnabled true", t, count=1)
+            if n == 0:
+                raise SystemExit("ERROR: compileOptions block not found in " + str(p))
+        if "coreLibraryDesugaring " not in t:
+            t += "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n"
     p.write_text(t, encoding="utf-8")
 
 # ---------- فرض compileSdk 36 على كل مكتبات الـ plugins (مثل file_picker) ----------

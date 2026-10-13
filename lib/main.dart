@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'screens/splash_gate.dart';
+import 'services/local_notify.dart';
 import 'services/zone_service.dart';
 
 Future<void> main() async {
@@ -15,6 +16,7 @@ Future<void> main() async {
     initError = e;
   }
   if (initError == null) ZoneService.start();
+  await LocalNotify.init();
   runApp(MishwarDriverApp(initError: initError));
 }
 

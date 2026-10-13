@@ -69,15 +69,14 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
     });
   }
 
-  Future<void> _update(Map<String, Object?> up, {String? state, String? expectedStatus, String? requiredCode}) async {
+  Future<void> _update(Map<String, Object?> up, {String? state, String? expectedStatus}) async {
     setState(() => _busy = true);
     try {
       final ref = db.child('rides/${widget.rideId}');
       if (up.containsKey('status')) {
         final current = asMap((await ref.get()).value);
-        if (current['driverId'] != myUid || current['status'] != expectedStatus ||
-            (requiredCode != null && current['startCode']?.toString() != requiredCode)) {
-          throw StateError('حالة الرحلة تغيرت أو رمز البدء غير صحيح.');
+        if (current['driverId'] != myUid || current['status'] != expectedStatus) {
+          throw StateError('حالة الرحلة تغيرت. حدّث الشاشة وحاول مرة أخرى.');
         }
         final result = await ref.child('status').runTransaction((Object? value) {
           if (value?.toString() != expectedStatus) return Transaction.abort();
@@ -375,12 +374,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                     AppButton('تم الوصول', onPressed: () => _update({'status': 'arrived', 'arrivedAt': ServerValue.timestamp}, state: 'arrived', expectedStatus: 'accepted'), busy: _busy),
                   ],
                   if (r.status == 'arrived') ...[
-                    TextField(controller: _code, keyboardType: TextInputType.number, maxLength: 4, decoration: const InputDecoration(labelText: 'رمز الراكب (4 أرقام)', counterText: '', filled: true, fillColor: AppColors.field)),
-                    const SizedBox(height: 8),
-                    AppButton('بدء الرحلة', busy: _busy, onPressed: () {
-                      if (_code.text.trim() != r.startCode) return showSnack(context, 'رمز الراكب غير صحيح', error: true);
-                      _update({'status': 'started', 'startedAt': ServerValue.timestamp}, state: 'started', expectedStatus: 'arrived', requiredCode: _code.text.trim());
-                    }),
+                    AppButton('بدء الرحلة', busy: _busy, onPressed: () => _update({'status': 'started', 'startedAt': ServerValue.timestamp}, state: 'started', expectedStatus: 'arrived')),
                   ],
                   if (r.status == 'accepted' || r.status == 'arrived') TextButton(onPressed: () => _cancel(r), child: const Text('إلغاء الرحلة', style: TextStyle(color: AppColors.red))),
                 ],

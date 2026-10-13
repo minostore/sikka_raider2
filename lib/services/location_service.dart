@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -49,13 +50,22 @@ class LocationService {
     }
   }
 
-  static Stream<Position> stream({int distanceFilter = 10}) =>
-      Geolocator.getPositionStream(
-        locationSettings: LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: distanceFilter,
-        ),
-      );
+  /// [foreground]=true على أندرويد: يعمل مع إشعار دائم (خدمة أمامية) فيستمر التتبع والتنبيهات والتطبيق في الخلفية.
+  static Stream<Position> stream({int distanceFilter = 10, bool foreground = false}) {
+    final LocationSettings settings = (foreground && defaultTargetPlatform == TargetPlatform.android)
+        ? AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: distanceFilter,
+            foregroundNotificationConfig: ForegroundNotificationConfig(
+              notificationTitle: 'سِكّة كابتن — متصل',
+              notificationText: 'بانتظار طلبات الرحلات الجديدة',
+              enableWakeLock: true,
+              setOngoing: true,
+            ),
+          )
+        : LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: distanceFilter);
+    return Geolocator.getPositionStream(locationSettings: settings);
+  }
 }
 
 /// عرض رسالة خطأ الموقع مع زر لفتح الإعدادات عند الحاجة
