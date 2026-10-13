@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
@@ -37,19 +40,7 @@ class ProfileScreen extends StatelessWidget {
             return FutureBuilder<({double avg, int count, List<Map<String, dynamic>> list})>(
               future: DriverService.ratings(),
               builder: (c, rs) => ListView(padding: const EdgeInsets.all(16), children: [
-                Row(children: [
-                  CircleAvatar(radius: 36, backgroundColor: AppColors.primary, child: Text((m['name'] ?? '؟').toString().characters.first, style: const TextStyle(fontSize: 30, color: AppColors.navy, fontWeight: FontWeight.w900))),
-                  const SizedBox(width: 14),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text((m['name'] ?? '').toString(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-                    Row(children: [
-                      const Icon(Icons.star, color: AppColors.orange, size: 18),
-                      Text(' ${rs.hasData && rs.data!.count > 0 ? rs.data!.avg.toStringAsFixed(1) : '—'}', style: const TextStyle(color: Colors.white)),
-                      const SizedBox(width: 10),
-                      const Text('سائق معتمد', style: TextStyle(color: AppColors.green)),
-                    ]),
-                  ])),
-                ]),
+                _ProfileHeader(m: m, rating: rs.hasData && rs.data!.count > 0 ? rs.data!.avg.toStringAsFixed(1) : '—'),
                 const SizedBox(height: 22),
                 _row(context, Icons.person_outline, 'المعلومات الشخصية', () => Navigator.push(context, MaterialPageRoute(builder: (_) => _InfoScreen(m)))),
                 _row(context, Icons.directions_car_outlined, 'المركبة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => VehicleScreen(m)))),
@@ -61,6 +52,142 @@ class ProfileScreen extends StatelessWidget {
           },
         ),
       );
+}
+
+/// رأس الملف: الصورة (التقاط أو من المعرض) + الاسم + التقييم
+class _ProfileHeader extends StatefulWidget {
+  final Map<String, dynamic> m;
+  final String rating;
+  const _ProfileHeader({required this.m, required this.rating});
+  @override
+  State<_ProfileHeader> createState() => _ProfileHeaderState();
+}
+
+class _ProfileHeaderState extends State<_ProfileHeader> {
+  String _fallbackName = FirebaseAuth.instance.currentUser?.displayName ?? '';
+  String? _localPhoto;
+  bool _uploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFallbackName();
+  }
+
+  String get _name {
+    final n = (widget.m['name'] ?? widget.m['fullName'] ?? '').toString().trim();
+    return n.isNotEmpty ? n : _fallbackName;
+  }
+
+  String get _photo =>
+      _localPhoto ?? (widget.m['photoUrl'] ?? widget.m['photoURL'] ?? widget.m['avatarUrl'] ?? '').toString();
+
+  /// إذا كان الاسم غير موجود في ملف السائق نقرأه من حساب المستخدم ونصلحه
+  Future<void> _loadFallbackName() async {
+    if ((widget.m['name'] ?? '').toString().trim().isNotEmpty) return;
+    try {
+      final v = (await db.child('users/$myUid/name').get()).value?.toString().trim() ?? '';
+      final name = v.isNotEmpty ? v : _fallbackName;
+      if (name.isEmpty) return;
+      if (mounted) setState(() => _fallbackName = name);
+      db.child('drivers/$myUid/name').set(name).catchError((_) {});
+    } catch (_) {}
+  }
+
+  Future<void> _changePhoto() async {
+    if (_uploading) return;
+    const white = TextStyle(color: Colors.white, fontWeight: FontWeight.w700);
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: const Color(0xFF173B5A),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.photo_camera, color: AppColors.primary),
+            title: const Text('التقاط صورة', style: white),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library, color: AppColors.primary),
+            title: const Text('اختيار من المعرض', style: white),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+        ]),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final x = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 800,
+        maxHeight: 800,
+        preferredCameraDevice: CameraDevice.front,
+      );
+      if (x == null) return;
+      if (mounted) setState(() => _uploading = true);
+      final bytes = await x.readAsBytes();
+      final ref = FirebaseStorage.instance.ref('driverAvatars/$myUid/avatar.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = '${await ref.getDownloadURL()}&t=${DateTime.now().millisecondsSinceEpoch}';
+      await db.child('drivers/$myUid/photoUrl').set(url);
+      db.child('users/$myUid/photoUrl').set(url).catchError((_) {});
+      if (mounted) {
+        setState(() => _localPhoto = url);
+        showSnack(context, 'تم تحديث صورتك الشخصية');
+      }
+    } catch (e) {
+      if (mounted) showSnack(context, errorMessage(e, fallback: 'تعذر تحديث الصورة. حاول مرة أخرى.'), error: true);
+    }
+    if (mounted) setState(() => _uploading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _name;
+    final photo = _photo;
+    final hasPhoto = photo.startsWith('http');
+    return Row(children: [
+      GestureDetector(
+        onTap: _changePhoto,
+        child: Stack(children: [
+          CircleAvatar(
+            radius: 36,
+            backgroundColor: AppColors.primary,
+            backgroundImage: hasPhoto ? NetworkImage(photo) : null,
+            child: _uploading
+                ? const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.navy))
+                : hasPhoto
+                    ? null
+                    : name.isEmpty
+                        ? const Icon(Icons.person, size: 38, color: AppColors.navy)
+                        : Text(name.characters.first, style: const TextStyle(fontSize: 30, color: AppColors.navy, fontWeight: FontWeight.w900)),
+          ),
+          PositionedDirectional(
+            bottom: 0,
+            end: 0,
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: AppColors.navy, width: 2)),
+              child: const Icon(Icons.photo_camera, size: 15, color: AppColors.navy),
+            ),
+          ),
+        ]),
+      ),
+      const SizedBox(width: 14),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name.isEmpty ? 'سائق' : name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+          Row(children: [
+            const Icon(Icons.star, color: AppColors.orange, size: 18),
+            Text(' ${widget.rating}', style: const TextStyle(color: Colors.white)),
+            const SizedBox(width: 10),
+            const Text('سائق معتمد', style: TextStyle(color: AppColors.green)),
+          ]),
+        ]),
+      ),
+    ]);
+  }
 }
 
 class _InfoScreen extends StatelessWidget {

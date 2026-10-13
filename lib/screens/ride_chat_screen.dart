@@ -20,7 +20,6 @@ class _RideChatScreenState extends State<RideChatScreen> {
   String _myName = 'أنا';
   String _otherName = 'الطرف الآخر';
   String? _otherId;
-  String _otherRole = 'user';
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   @override
@@ -45,28 +44,10 @@ class _RideChatScreenState extends State<RideChatScreen> {
         _myName = (isRider ? ride['riderName'] : ride['driverName'])?.toString() ?? 'أنا';
         _otherName = (isRider ? ride['driverName'] : ride['riderName'])?.toString() ?? 'الطرف الآخر';
         _otherId = isRider ? driverId : riderId;
-        _otherRole = isRider ? 'driver' : 'user';
         });
       }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-    }
-  }
-
-  Future<void> _blockOther() async {
-    final uid = _uid, otherId = _otherId;
-    if (uid == null || otherId == null || otherId.isEmpty) return;
-    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('حظر الحساب'),
-      content: Text('هل تريد حظر $_otherName؟ لن تتمكن من مراسلته أو استقبال عروض منه.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حظر'))],
-    ));
-    if (ok != true) return;
-    try {
-      await _db.child('blocks/$uid/$otherId').set({'name': _otherName, 'role': _otherRole, 'blockedAt': ServerValue.timestamp});
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حظر الحساب'))); Navigator.pop(context); }
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر حظر الحساب')));
     }
   }
 
@@ -81,9 +62,7 @@ class _RideChatScreenState extends State<RideChatScreen> {
     setState(() => _sending = true);
     try {
       final otherId = _otherId;
-      if (otherId == null || (await _db.child('blocks/$uid/$otherId').get()).exists || (await _db.child('blocks/$otherId/$uid').get()).exists) {
-        throw Exception('المحادثة غير متاحة بسبب إعدادات الحظر.');
-      }
+      if (otherId == null) throw Exception('المحادثة غير متاحة.');
       final rideSnap = await _db.child('rides/${widget.rideId}').get();
       if (!rideSnap.exists || rideSnap.value is! Map) throw Exception('الرحلة غير موجودة.');
       final ride = Map<String, dynamic>.from(rideSnap.value as Map);
@@ -125,9 +104,7 @@ class _RideChatScreenState extends State<RideChatScreen> {
   Widget build(BuildContext context) {
     final uid = _uid;
     return Scaffold(
-      appBar: AppBar(title: Text('محادثة مع $_otherName'), centerTitle: true, actions: [
-        IconButton(tooltip: 'حظر الطرف الآخر', icon: const Icon(Icons.person_off_outlined), onPressed: _blockOther),
-      ]),
+      appBar: AppBar(title: Text('محادثة مع $_otherName'), centerTitle: true),
       body: _error != null
           ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)))
           : Column(children: [

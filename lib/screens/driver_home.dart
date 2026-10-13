@@ -43,6 +43,25 @@ class _DriverHomeState extends State<DriverHome> {
       if (value is num && mounted) setState(() => _serverOffsetMs = value.toInt());
     });
     _expiryTimer = Timer.periodic(const Duration(seconds: 1), (_) { if (mounted && _online) setState(() {}); });
+    // تحديد الموقع تلقائياً عند فتح الشاشة (يطلب الإذن عند الحاجة)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _locateMe());
+  }
+
+  Future<void> _locateMe() async {
+    try {
+      final p = await LocationService.current();
+      if (!mounted) return;
+      LocationPublisher.position.value = p;
+      _moveTo(p);
+    } catch (e) {
+      if (mounted) showLocationError(context, e);
+    }
+  }
+
+  void _moveTo(LatLng p) {
+    try {
+      _map.move(p, 15);
+    } catch (_) {}
   }
 
   @override
@@ -62,6 +81,8 @@ class _DriverHomeState extends State<DriverHome> {
           return;
         }
         final p = await LocationService.current(); // يتحقق من GPS والصلاحيات
+        LocationPublisher.position.value = p;
+        _moveTo(p);
         if (!ZoneService.allowed(p)) {
           if (mounted) showSnack(context, 'موقعك الحالي خارج نطاق الخدمة، لا يمكنك استقبال الرحلات من هنا.', error: true);
           if (mounted) setState(() => _busy = false);
@@ -128,7 +149,11 @@ class _DriverHomeState extends State<DriverHome> {
                     markers: [if (p != null) _pulse(p)],
                     onRecenter: () {
                       final q = LocationPublisher.position.value;
-                      if (q != null) _map.move(q, 15);
+                      if (q != null) {
+                        _moveTo(q);
+                      } else {
+                        _locateMe();
+                      }
                     },
                   ),
                 ),

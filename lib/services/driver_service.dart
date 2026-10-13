@@ -62,6 +62,7 @@ class LocationPublisher {
   }
 
   static void _publish() {
+    if (_sub == null) return; // غير متصل: لا ننشر الموقع (الموقع المحلي للعرض فقط)
     final p = position.value;
     if (p == null) return;
     final uid = myUid;
@@ -171,10 +172,6 @@ class DriverService {
     if (expiry == null || expiry <= serverNow) {
       throw Exception('انتهت مهلة استقبال العروض لهذا الطلب (60 ثانية).');
     }
-    final riderId = (ride['riderId'] ?? '').toString();
-    final blockedByMe = (await db.child('blocks/$myUid/$riderId').get()).exists;
-    final blockedMe = (await db.child('blocks/$riderId/$myUid').get()).exists;
-    if (blockedByMe || blockedMe) throw Exception('لا يمكن إرسال عرض بسبب إعدادات الحظر بين الحسابين.');
     final p = await profile();
     if (p['status'] != 'approved') throw Exception('يجب اعتماد حسابك قبل تقديم عروض الرحلات.');
     final r = await ratings();

@@ -54,6 +54,25 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
       - name: تجهيز منصات Android/iOS
         run: bash tool/setup_platforms.sh
+      - name: تثبيت NDK مع إعادة المحاولة (حل مشكلة الملف التالف)
+        shell: bash
+        env:
+          NDK_VERSION: "28.2.13676358"
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          for i in 1 2 3; do
+            echo "محاولة تثبيت NDK رقم $i"
+            rm -rf "$SDK/ndk/$NDK_VERSION"
+            yes | "$SDKMANAGER" --install "ndk;$NDK_VERSION" || true
+            if [ -f "$SDK/ndk/$NDK_VERSION/source.properties" ]; then
+              echo "تم تثبيت NDK بنجاح"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "فشل تثبيت NDK بعد 3 محاولات"
+          exit 1
       - name: ترحيل ملفات Android Gradle أولاً
         run: flutter build apk --release --target-platform android-arm64 --config-only
       - name: فرض Android compileSdk 36 في كل ملفات Gradle والتحقق
