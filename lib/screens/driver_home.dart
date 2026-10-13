@@ -83,8 +83,10 @@ class _DriverHomeState extends State<DriverHome> {
         final p = await LocationService.current(); // يتحقق من GPS والصلاحيات
         LocationPublisher.position.value = p;
         _moveTo(p);
+        await ZoneService.ensureLoaded();
         if (!ZoneService.allowed(p)) {
-          if (mounted) showSnack(context, 'موقعك الحالي خارج نطاق الخدمة، لا يمكنك استقبال الرحلات من هنا.', error: true);
+          final problem = ZoneService.loadProblem;
+          if (mounted) showSnack(context, problem ?? 'موقعك الحالي خارج نطاق الخدمة، لا يمكنك استقبال الرحلات من هنا.', error: true);
           if (mounted) setState(() => _busy = false);
           return;
         }
