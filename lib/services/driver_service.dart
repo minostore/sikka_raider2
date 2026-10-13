@@ -151,6 +151,19 @@ class DriverService {
     return out;
   }
 
+  /// ينفّذ خطوة ويحوّل خطأ الصلاحيات إلى رسالة تحدد أي مسار رفضته قواعد Firebase
+  static Future<T> _step<T>(String label, Future<T> Function() f) async {
+    try {
+      return await f();
+    } catch (e) {
+      final t = e.toString().toLowerCase();
+      if (t.contains('permission denied') || t.contains('permission-denied')) {
+        throw Exception('رفضت قواعد Firebase صلاحية: $label');
+      }
+      rethrow;
+    }
+  }
+
   static Future<void> sendOffer({
     required String rideId,
     required double price,
@@ -160,36 +173,38 @@ class DriverService {
     if (!price.isFinite || price <= 0 || etaMin < 0 || etaMin > 240) {
       throw Exception('تحقق من السعر ووقت الوصول قبل إرسال العرض.');
     }
-    final rideSnapshot = await db.child('rides/$rideId').get();
-    if (!rideSnapshot.exists) throw Exception('الطلب غير موجود أو انتهت صلاحيته.');
-    final ride = asMap(rideSnapshot.value);
-    if (ride['status'] != 'requested') throw Exception('لم يعد هذا الطلب متاحاً لتقديم العروض.');
-    final request = asMap((await db.child('openRequests/$rideId').get()).value);
-    final createdAt = (request['createdAt'] as num?)?.toInt() ?? (ride['createdAt'] as num?)?.toInt();
+    // الطلب المفتوح هو المصدر الوحيد: وجوده يعني أنه ما زال متاحاً (لا نقرأ rides/ لأن السائق لا يملك صلاحيتها قبل قبول عرضه)
+    final requestSnap = await _step('قراءة الطلب المفتوح (openRequests)', () => db.child('openRequests/$rideId').get());
+    if (!requestSnap.exists) throw Exception('الطلب غير موجود أو لم يعد متاحاً لتقديم العروض.');
+    final request = asMap(requestSnap.value);
+    final createdAt = (request['createdAt'] as num?)?.toInt();
     final legacyExpiry = (request['expiresAt'] as num?)?.toInt();
     final expiry = createdAt != null ? createdAt + const Duration(seconds: 60).inMilliseconds : legacyExpiry;
     final serverNow = await serverNowMs();
     if (expiry == null || expiry <= serverNow) {
       throw Exception('انتهت مهلة استقبال العروض لهذا الطلب (60 ثانية).');
     }
-    final p = await profile();
-    if (p['status'] != 'approved') throw Exception('يجب اعتماد حسابك قبل تقديم عروض الرحلات.');
-    final r = await ratings();
+    final p = await _step('قراءة بيانات السائق (drivers)', () => profile());
+    if (p['status'] != 'approved' && p['status'] != 'active') throw Exception('يجب اعتماد حسابك قبل تقديم عروض الرحلات.');
+    var avg = 0.0;
+    try {
+      avg = (await ratings()).avg;
+    } catch (_) {}
     final v = asMap(p['vehicle']);
-    await db.child('rides/$rideId/offers/$myUid').set({
-      'name': p['name'] ?? '',
-      'photoUrl': p['photoUrl'] ?? p['photoURL'] ?? p['avatarUrl'] ?? '',
-      'phone': p['phone'] ?? '',
-      'rating': double.parse(r.avg.toStringAsFixed(1)),
-      'trips': (p['tripsCount'] as num?)?.toInt() ?? 0,
-      'vehicle': '${v['model'] ?? ''} • ${v['color'] ?? ''}',
-      'plate': v['plate'] ?? '',
-      'price': price,
-      'etaMin': etaMin,
-      'note': note,
-      'status': 'pending',
-      'createdAt': ServerValue.timestamp,
-    });
+    await _step('كتابة العرض (rides/$rideId/offers)', () => db.child('rides/$rideId/offers/$myUid').set({
+          'name': p['name'] ?? '',
+          'photoUrl': p['photoUrl'] ?? p['photoURL'] ?? p['avatarUrl'] ?? '',
+          'phone': p['phone'] ?? '',
+          'rating': double.parse(avg.toStringAsFixed(1)),
+          'trips': (p['tripsCount'] as num?)?.toInt() ?? 0,
+          'vehicle': '${v['model'] ?? ''} • ${v['color'] ?? ''}',
+          'plate': v['plate'] ?? '',
+          'price': price,
+          'etaMin': etaMin,
+          'note': note,
+          'status': 'pending',
+          'createdAt': ServerValue.timestamp,
+        }));
   }
 
   static Future<void> withdrawOffer(String rideId) =>
