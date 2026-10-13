@@ -27,6 +27,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
   late final Place _dest = Place.fromMap(asMap(widget.data['dest']));
   late final _price = TextEditingController(text: numD(widget.data['price']).round().toString());
   final _note = TextEditingController(text: 'سأصل خلال دقائق');
+  final _priceFocus = FocusNode();
   RouteInfo? _toPickup, _trip;
   bool _sent = false, _busy = false, _gone = false;
   Timer? _timer;
@@ -116,11 +117,11 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
         ),
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+          decoration: const BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
           child: SafeArea(
             top: false,
             child: Theme(
-              data: AppTheme.light,
+              data: AppTheme.dark,
               child: DefaultTextStyle.merge(
               style: const TextStyle(color: AppColors.ink),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -140,8 +141,24 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                   const Center(child: Padding(padding: EdgeInsets.all(8), child: Text('تم إرسال عرضك. بانتظار قرار الراكب...', style: TextStyle(fontWeight: FontWeight.w800)))),
                   Center(child: TextButton(onPressed: () async { await DriverService.withdrawOffer(widget.requestId); if (mounted) setState(() => _sent = false); }, child: const Text('سحب العرض'))),
                 ] else if (!locked) ...[
+                  // مبالغ سريعة: القيمة هنا هي السعر الكامل للرحلة (وليس زيادة)، ويظهر في الحقل قبل الإرسال
+                  Wrap(spacing: 8, runSpacing: 4, children: [
+                    for (final add in const [0, 5, 10, 20])
+                      ActionChip(
+                        label: Text('${numD(widget.data['price']).round() + add}'),
+                        onPressed: () => setState(() => _price.text = '${numD(widget.data['price']).round() + add}'),
+                      ),
+                    ActionChip(
+                      label: const Text('مبلغ آخر'),
+                      onPressed: () {
+                        _price.clear();
+                        _priceFocus.requestFocus();
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
                   Row(children: [
-                    SizedBox(width: 120, child: TextField(controller: _price, keyboardType: TextInputType.number, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20), decoration: InputDecoration(labelText: 'سعرك (${AppConfigCurrency.c})', filled: true, fillColor: AppColors.field))),
+                    SizedBox(width: 120, child: TextField(controller: _price, focusNode: _priceFocus, keyboardType: TextInputType.number, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20), decoration: InputDecoration(labelText: 'سعرك (${AppConfigCurrency.c})', filled: true, fillColor: AppColors.field))),
                     const SizedBox(width: 10),
                     Expanded(child: TextField(controller: _note, decoration: const InputDecoration(labelText: 'ملاحظة للراكب', filled: true, fillColor: AppColors.field))),
                   ]),

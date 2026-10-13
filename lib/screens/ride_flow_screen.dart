@@ -325,7 +325,7 @@ class _TrackingViewState extends State<_TrackingView> {
       Container(
         padding: const EdgeInsets.all(14),
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: AppColors.card,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           boxShadow: [BoxShadow(blurRadius: 12, color: Colors.black26)],
         ),

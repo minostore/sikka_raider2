@@ -48,12 +48,12 @@ class _DriverShellState extends State<DriverShell> {
   Widget build(BuildContext context) => Scaffold(
         body: IndexedStack(index: _i, children: const [DriverHome(), EarningsScreen(), TripsScreen(), ProfileScreen()]),
         bottomNavigationBar: Container(
-          decoration: const BoxDecoration(color: Color(0xFF082840), border: Border(top: BorderSide(color: Color(0xFF173B5A)))),
+          decoration: const BoxDecoration(color: AppColors.bg, border: Border(top: BorderSide(color: AppColors.field))),
           child: BottomNavigationBar(
             currentIndex: _i,
             onTap: (v) => setState(() => _i = v),
             type: BottomNavigationBarType.fixed,
-            backgroundColor: const Color(0xFF082840),
+            backgroundColor: AppColors.bg,
             elevation: 0,
             selectedItemColor: AppColors.primary,
             unselectedItemColor: Colors.white60,

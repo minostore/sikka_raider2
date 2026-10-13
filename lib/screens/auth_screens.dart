@@ -38,26 +38,17 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: AppColors.navy,
+        backgroundColor: AppConfig.logoBg,
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                  color: AppColors.primary, borderRadius: BorderRadius.circular(28)),
-              child: const Icon(Icons.local_taxi, size: 64, color: Colors.white),
-            ),
-            const SizedBox(height: 18),
-            const Text(AppConfig.appName,
-                style: TextStyle(
-                    color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
+            Image.asset(AppConfig.logoAsset, width: 260, height: 260, fit: BoxFit.contain),
+            const SizedBox(height: 4),
             Text(widget.tagline, style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 32),
             const SizedBox(
                 width: 26,
                 height: 26,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)),
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary)),
             const SizedBox(height: 8),
             const Text('جاري التحميل...', style: TextStyle(color: Colors.white54)),
           ]),
@@ -86,10 +77,9 @@ class WelcomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             child: Column(children: [
               const Spacer(),
-              const CircleAvatar(
-                  radius: 52,
-                  backgroundColor: AppColors.primary,
-                  child: Icon(Icons.local_taxi, size: 56, color: Colors.white)),
+              ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Image.asset(AppConfig.logoAsset, width: 150, height: 150, fit: BoxFit.cover)),
               const SizedBox(height: 24),
               Text(title,
                   textAlign: TextAlign.center,

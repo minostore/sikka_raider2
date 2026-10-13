@@ -23,7 +23,7 @@ class ProfileScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: const Color(0xFF173B5A), borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(14)),
             child: Row(children: [Icon(i, color: AppColors.primary), const SizedBox(width: 12), Expanded(child: Text(t, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15))), const Icon(Icons.chevron_left, color: Colors.white54)]),
           ),
         ),
@@ -99,7 +99,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     const white = TextStyle(color: Colors.white, fontWeight: FontWeight.w700);
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: const Color(0xFF173B5A),
+      backgroundColor: AppColors.field,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(

@@ -160,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F7), borderRadius: BorderRadius.circular(12)),
+                      color: AppColors.field, borderRadius: BorderRadius.circular(12)),
                   child: const Row(children: [
                     Icon(Icons.search, color: AppColors.primary),
                     SizedBox(width: 10),

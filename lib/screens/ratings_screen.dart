@@ -32,7 +32,7 @@ class RatingsScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(children: [
                         SizedBox(width: 18, child: Text('${d.$1}', style: const TextStyle(fontWeight: FontWeight.w800))),
-                        Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: d.$2 / 100, minHeight: 8, backgroundColor: const Color(0xFFE6ECF0), color: AppColors.green))),
+                        Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: d.$2 / 100, minHeight: 8, backgroundColor: AppColors.border, color: AppColors.green))),
                         SizedBox(width: 44, child: Text('${d.$2}%', textAlign: TextAlign.end, style: const TextStyle(fontSize: 12, color: Colors.grey))),
                       ]),
                     ),

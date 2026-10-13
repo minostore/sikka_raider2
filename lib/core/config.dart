@@ -1,9 +1,13 @@
+import 'package:flutter/painting.dart';
 import 'package:latlong2/latlong.dart';
 
 /// إعدادات التطبيق — عدّل القيم هنا فقط (العملة، رمز الدولة، مصدر الخرائط...)
 class AppConfig {
   static const appName = 'Sikka Driver';
   static const role = 'driver'; // rider | driver
+  static const logoAsset = 'assets/branding/logo.png';
+  static const logoBg = Color(0xFF040D22); // لون خلفية صورة الشعار
+  static const emergencyNumber = '122'; // رقم نجدة الشرطة في مصر
   static const currency = 'ج.م';
   static const countryCode = '+20';
   static const packageName = 'com.sikka.driver';

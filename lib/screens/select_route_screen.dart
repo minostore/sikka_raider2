@@ -73,9 +73,9 @@ class _SelectRouteScreenState extends State<SelectRouteScreen> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.card,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300)),
+              border: Border.all(color: AppColors.border)),
           child: Row(children: [
             Icon(Icons.circle, size: 14, color: c),
             const SizedBox(width: 10),

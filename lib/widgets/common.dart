@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/config.dart';
 import '../core/theme.dart';
 
 class LoadingView extends StatelessWidget {
@@ -63,25 +64,16 @@ class InfoCard extends StatelessWidget {
   final EdgeInsets padding;
   const InfoCard({super.key, required this.child, this.padding = const EdgeInsets.all(14)});
   @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    // البطاقات بيضاء حتى في الوضع الداكن (كما في تصميم تطبيق السائق)
-    final inner = dark
-        ? Theme(
-            data: AppTheme.light,
-            child: DefaultTextStyle.merge(style: const TextStyle(color: AppColors.ink), child: child))
-        : child;
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [BoxShadow(blurRadius: 14, color: Color(0x1A0B2A3C), offset: Offset(0, 4))],
-      ),
-      child: inner,
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: padding,
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: child,
+      );
 }
 
 /// الزر الأساسي بتدرج لوني حسب هوية كل تطبيق
@@ -134,10 +126,22 @@ InputDecoration fieldDec(BuildContext context, String hint, IconData icon, {Widg
     prefixIcon: Icon(icon, color: dark ? Colors.white70 : Colors.grey.shade600),
     suffixIcon: suffix,
     filled: true,
-    fillColor: dark ? const Color(0xFF173B5A) : Colors.white,
+    fillColor: dark ? AppColors.field : Colors.white,
     hintStyle: TextStyle(color: dark ? Colors.white60 : Colors.grey.shade600),
     contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: dark ? const Color(0xFF244B6B) : const Color(0xFFDDE5EA))),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: dark ? const Color(0xFF244B6B) : const Color(0xFFDDE5EA))),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: dark ? AppColors.border : const Color(0xFFDDE5EA))),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: dark ? AppColors.border : const Color(0xFFDDE5EA))),
   );
+}
+
+/// شعار سيكة (يختلف بين تطبيق المستخدم وتطبيق الكابتن حسب الأصل المرفق)
+class SikkaLogo extends StatelessWidget {
+  final double size;
+  final double radius;
+  const SikkaLogo({super.key, this.size = 140, this.radius = 28});
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Image.asset(AppConfig.logoAsset, width: size, height: size, fit: BoxFit.cover),
+      );
 }

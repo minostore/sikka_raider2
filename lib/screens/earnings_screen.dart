@@ -121,7 +121,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     child: Container(
                       height: 40,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: _p == k ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(10), boxShadow: _p == k ? const [BoxShadow(blurRadius: 4, color: Color(0x22000000))] : null),
+                      decoration: BoxDecoration(color: _p == k ? AppColors.card : Colors.transparent, borderRadius: BorderRadius.circular(10), boxShadow: _p == k ? const [BoxShadow(blurRadius: 4, color: Color(0x22000000))] : null),
                       child: Text(t, style: TextStyle(fontWeight: _p == k ? FontWeight.w900 : FontWeight.w500, color: AppColors.ink)),
                     ),
                   ),
@@ -132,7 +132,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 InfoCard(
                   padding: const EdgeInsets.all(14),
                   child: Column(children: [
-                    Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: const Color(0xFFEAF0F4), borderRadius: BorderRadius.circular(12)), child: Row(children: [seg('year', 'سنوي'), seg('month', 'شهري'), seg('week', 'أسبوعي')])),
+                    Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(12)), child: Row(children: [seg('year', 'سنوي'), seg('month', 'شهري'), seg('week', 'أسبوعي')])),
                     const SizedBox(height: 18),
                     Text(money(total), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900)),
                     const Text('إجمالي الأرباح', style: TextStyle(color: Colors.grey)),
@@ -153,7 +153,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     const Divider(height: 26),
                     Row(children: [
                       Expanded(child: Column(children: [Text('$n', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const Text('رحلة عمل', style: TextStyle(color: Colors.grey))])),
-                      Container(width: 1, height: 36, color: const Color(0xFFE6ECF0)),
+                      Container(width: 1, height: 36, color: AppColors.border),
                       Expanded(child: Column(children: [Text((mins / 60).toStringAsFixed(1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const Text('ساعة عمل', style: TextStyle(color: Colors.grey))])),
                     ]),
                   ]),

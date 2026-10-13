@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import '../core/theme.dart';
 
 /// Lightweight in-ride chat backed by Firebase Realtime Database.
 class RideChatScreen extends StatefulWidget {
@@ -133,11 +134,11 @@ class _RideChatScreenState extends State<RideChatScreen> {
                       final mine = m['senderId']?.toString() == uid;
                       return Align(alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
                         child: Container(constraints: const BoxConstraints(maxWidth: 300), margin: const EdgeInsets.symmetric(vertical: 5), padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                          decoration: BoxDecoration(color: mine ? const Color(0xFFDCEBFF) : const Color(0xFFF0F1F3), borderRadius: BorderRadius.circular(16)),
+                          decoration: BoxDecoration(color: mine ? const Color(0xFF3A2F0C) : AppColors.field, borderRadius: BorderRadius.circular(16)),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            if (!mine) Text((m['senderName'] ?? _otherName).toString(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1769AA))),
+                            if (!mine) Text((m['senderName'] ?? _otherName).toString(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
                             Text((m['text'] ?? '').toString(), style: const TextStyle(fontSize: 15)),
-                            Align(alignment: AlignmentDirectional.centerEnd, child: Row(mainAxisSize: MainAxisSize.min, children: [Text(_time(m['createdAt']), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)), if (mine) ...[const SizedBox(width: 4), Icon(Icons.done_all, size: 15, color: m['readBy'] is Map && _otherId != null && (m['readBy'] as Map)[_otherId] == true ? Colors.blue : Colors.grey)]])),
+                            Align(alignment: AlignmentDirectional.centerEnd, child: Row(mainAxisSize: MainAxisSize.min, children: [Text(_time(m['createdAt']), style: TextStyle(fontSize: 10, color: Colors.white54)), if (mine) ...[const SizedBox(width: 4), Icon(Icons.done_all, size: 15, color: m['readBy'] is Map && _otherId != null && (m['readBy'] as Map)[_otherId] == true ? Colors.blue : Colors.grey)]])),
                           ]),
                         ),
                       );

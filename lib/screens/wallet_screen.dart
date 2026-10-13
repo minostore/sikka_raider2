@@ -57,7 +57,7 @@ class WalletScreen extends StatelessWidget {
           return ListView(padding: const EdgeInsets.all(14), children: [
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(18)),
+              decoration: BoxDecoration(color: AppColors.card, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(18)),
               child: Column(children: [
                 const Text('الرصيد الحالي', style: TextStyle(color: Colors.white70)),
                 const SizedBox(height: 6),

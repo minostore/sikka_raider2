@@ -212,7 +212,7 @@ class _DriverHomeState extends State<DriverHome> {
       child: InfoCard(
         child: Column(children: [
           Row(children: [
-            CircleAvatar(radius: 22, backgroundColor: const Color(0xFFE9F1F5), backgroundImage: (m['riderPhotoUrl'] ?? '').toString().startsWith('http') ? NetworkImage((m['riderPhotoUrl']).toString()) : null, child: (m['riderPhotoUrl'] ?? '').toString().startsWith('http') ? null : const Icon(Icons.person, color: AppColors.ink)),
+            CircleAvatar(radius: 22, backgroundColor: AppColors.field, backgroundImage: (m['riderPhotoUrl'] ?? '').toString().startsWith('http') ? NetworkImage((m['riderPhotoUrl']).toString()) : null, child: (m['riderPhotoUrl'] ?? '').toString().startsWith('http') ? null : const Icon(Icons.person, color: AppColors.ink)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text((m['riderName'] ?? 'مستخدم').toString(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),

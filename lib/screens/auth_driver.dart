@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/config.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../services/auth_service.dart';
@@ -66,7 +67,8 @@ class _DriverSplashState extends State<DriverSplash> {
   @override
   Widget build(BuildContext context) => Scaffold(
         body: Stack(children: [
-          Positioned.fill(child: CustomPaint(painter: RoadPainter())),
+          Positioned.fill(child: ColoredBox(color: AppConfig.logoBg)),
+          const Positioned(top: 0, left: 0, right: 0, bottom: 150, child: Center(child: SikkaLogo(size: 280, radius: 36))),
           Positioned(
             left: 0,
             right: 0,
@@ -135,9 +137,11 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         body: SafeArea(
-          child: ListView(padding: const EdgeInsets.fromLTRB(24, 70, 24, 24), children: [
+          child: ListView(padding: const EdgeInsets.fromLTRB(24, 24, 24, 24), children: [
+            const Center(child: SikkaLogo(size: 150)),
+            const SizedBox(height: 18),
             const Text('تسجيل الدخول', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
-            const SizedBox(height: 40),
+            const SizedBox(height: 28),
             TextField(controller: _phone, keyboardType: TextInputType.phone, textDirection: TextDirection.ltr, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'رقم الهاتف', Icons.smartphone)),
             const SizedBox(height: 14),
             TextField(controller: _pass, obscureText: true, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'كلمة المرور', Icons.lock_outline)),
@@ -214,7 +218,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _city,
-              dropdownColor: const Color(0xFF173B5A),
+              dropdownColor: AppColors.field,
               style: const TextStyle(color: Colors.white),
               decoration: fieldDec(context, 'المدينة (اختياري)', Icons.location_city),
               items: cities.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),

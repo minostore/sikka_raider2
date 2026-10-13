@@ -85,7 +85,7 @@ class _MapPickScreenState extends State<MapPickScreen> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.card,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: const [BoxShadow(blurRadius: 10, color: Colors.black26)]),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [

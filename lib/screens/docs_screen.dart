@@ -40,6 +40,7 @@ class DocsScreen extends StatefulWidget {
 class _DocsScreenState extends State<DocsScreen> {
   final _uid = FirebaseAuth.instance.currentUser!.uid;
   late final Map<String, dynamic> _veh = asMap(widget.data['vehicle']);
+  late String _vtype = (_veh['type'] ?? '').toString();
   late final _model = TextEditingController(text: _veh['model']?.toString() ?? '');
   late final _year = TextEditingController(text: _veh['year']?.toString() ?? '');
   late final _color = TextEditingController(text: _veh['color']?.toString() ?? '');
@@ -99,10 +100,11 @@ class _DocsScreenState extends State<DocsScreen> {
   }
 
   Future<void> _vehicleNext() async {
+    if (_vtype.isEmpty) return showSnack(context, 'اختر نوع الوسيلة (موتوسيكل أو اسكوتر)', error: true);
     if ([_model, _year, _color, _plate].any((c) => c.text.trim().isEmpty)) return showSnack(context, 'أكمل بيانات المركبة', error: true);
     setState(() => _busy = true);
     try {
-      await FirebaseDatabase.instance.ref('drivers/$_uid/vehicle').set({'model': _model.text.trim(), 'year': _year.text.trim(), 'color': _color.text.trim(), 'plate': _plate.text.trim()});
+      await FirebaseDatabase.instance.ref('drivers/$_uid/vehicle').set({'type': _vtype, 'model': _model.text.trim(), 'year': _year.text.trim(), 'color': _color.text.trim(), 'plate': _plate.text.trim()});
       setState(() => _step = 3);
     } catch (e) {
       showSnack(context, AuthService.message(e), error: true);
@@ -137,7 +139,7 @@ class _DocsScreenState extends State<DocsScreen> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: const Color(0xFFE9F1F5), borderRadius: BorderRadius.circular(10)), child: Icon(docIcons[k], color: AppColors.ink)),
+          Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(10)), child: Icon(docIcons[k], color: AppColors.ink)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(docLabels[k]!, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
@@ -162,7 +164,25 @@ class _DocsScreenState extends State<DocsScreen> {
             StepperHeader(_step),
             const SizedBox(height: 24),
             if (_step == 2) ...[
-              _f(_model, 'نوع المركبة (مثال: تويوتا كامري)', Icons.directions_car_outlined),
+              const Text('نوع الوسيلة', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: ChoiceChip(
+                  label: const SizedBox(width: double.infinity, child: Text('موتوسيكل', textAlign: TextAlign.center)),
+                  avatar: const Icon(Icons.two_wheeler, size: 20),
+                  selected: _vtype == 'motorcycle',
+                  onSelected: (_) => setState(() => _vtype = 'motorcycle'),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: ChoiceChip(
+                  label: const SizedBox(width: double.infinity, child: Text('اسكوتر', textAlign: TextAlign.center)),
+                  avatar: const Icon(Icons.moped, size: 20),
+                  selected: _vtype == 'scooter',
+                  onSelected: (_) => setState(() => _vtype = 'scooter'),
+                )),
+              ]),
+              const SizedBox(height: 12),
+              _f(_model, 'الموديل (مثال: هوندا 125)', Icons.two_wheeler),
               _f(_year, 'سنة الصنع', Icons.calendar_today_outlined, num: true),
               _f(_color, 'اللون', Icons.palette_outlined),
               _f(_plate, 'رقم اللوحة', Icons.pin_outlined),

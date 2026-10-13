@@ -332,7 +332,7 @@ class _TicketChatScreenState extends State<TicketChatScreen> {
                   label,
                   style: const TextStyle(
                     fontSize: 11,
-                    color: Color(0xFF52636D),
+                    color: Color(0xFFA9B4C2),
                   ),
                 ),
               ],
@@ -379,8 +379,8 @@ class _TicketChatScreenState extends State<TicketChatScreen> {
                           constraints: const BoxConstraints(maxWidth: 320),
                           decoration: BoxDecoration(
                             color: m['from'] == 'admin'
-                                ? const Color(0xFFFFF4D1)
-                                : const Color(0xFFEAF2F5),
+                                ? const Color(0xFF3A2F0C)
+                                : AppColors.field,
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Column(
@@ -391,7 +391,7 @@ class _TicketChatScreenState extends State<TicketChatScreen> {
                                   'خدمة العملاء',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.navy,
+                                    color: AppColors.ink,
                                   ),
                                 ),
                               if ((m['text'] ?? '').toString().isNotEmpty)
@@ -408,7 +408,7 @@ class _TicketChatScreenState extends State<TicketChatScreen> {
                                     : '',
                                 style: const TextStyle(
                                   fontSize: 10,
-                                  color: Color(0xFF667781),
+                                  color: Color(0xFFA9B4C2),
                                 ),
                               ),
                             ],
@@ -454,7 +454,7 @@ class _TicketChatScreenState extends State<TicketChatScreen> {
                               )
                             : const Icon(
                                 Icons.attach_file,
-                                color: AppColors.navy,
+                                color: AppColors.ink,
                               ),
                       ),
                       Expanded(

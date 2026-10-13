@@ -21,6 +21,7 @@ class _MainShellState extends State<MainShell> {
           AccountScreen(),
         ]),
         bottomNavigationBar: NavigationBar(
+          height: 68,
           selectedIndex: _i,
           onDestinationSelected: (v) => setState(() => _i = v),
           destinations: const [

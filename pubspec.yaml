@@ -39,10 +39,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/onboarding/
+    - assets/branding/
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/branding/app_icon.png"
-  adaptive_icon_background: "#08172B"
+  adaptive_icon_background: "#040D22"
   adaptive_icon_foreground: "assets/branding/app_icon.png"

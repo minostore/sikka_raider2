@@ -185,13 +185,13 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
                       ? (ticket['messages'] as Map).length
                       : 0;
                   return Card(
-                    color: Colors.white,
+                    color: AppColors.card,
                     child: ListTile(
                       leading: const CircleAvatar(
-                        backgroundColor: Color(0x1AFFB800),
+                        backgroundColor: Color(0x1AFFCC00),
                         child: Icon(
                           Icons.forum_outlined,
-                          color: AppColors.navy,
+                          color: AppColors.primary,
                         ),
                       ),
                       title: Text(
@@ -203,11 +203,11 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
                       ),
                       subtitle: Text(
                         'تذكرة #${ticket['ticketNumber'] ?? id.substring(id.length - 8).toUpperCase()} • $statusLabel • $messages رسالة',
-                        style: const TextStyle(color: Color(0xFF52636D)),
+                        style: const TextStyle(color: Color(0xFFA9B4C2)),
                       ),
                       trailing: const Icon(
                         Icons.chevron_left,
-                        color: AppColors.navy,
+                        color: AppColors.ink,
                       ),
                       onTap: () => Navigator.push(
                         context,

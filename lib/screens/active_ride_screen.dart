@@ -323,11 +323,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
       ),
       Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(22)), boxShadow: [BoxShadow(blurRadius: 14, color: Colors.black38)]),
+        decoration: const BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.vertical(top: Radius.circular(22)), boxShadow: [BoxShadow(blurRadius: 14, color: Colors.black38)]),
         child: SafeArea(
           top: false,
           child: Theme(
-            data: AppTheme.light,
+            data: AppTheme.dark,
             child: DefaultTextStyle.merge(
               style: const TextStyle(color: AppColors.ink),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -355,18 +355,18 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                     const SizedBox(height: 10),
                   ],
                   Row(children: [
-                    const CircleAvatar(radius: 24, backgroundColor: Color(0xFFE3EEFB), child: Icon(Icons.person, color: _blue)),
+                    const CircleAvatar(radius: 24, backgroundColor: AppColors.field, child: Icon(Icons.person, color: _blue)),
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(r.riderName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                       Text(r.pickup.address, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _blue, fontSize: 13)),
                       Text('${money(r.finalPrice)} (نقداً)', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     ])),
-                    InkWell(onTap: () => _launch('tel', r.riderPhone), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: Color(0xFFE9F1F5), shape: BoxShape.circle), child: const Icon(Icons.call, color: AppColors.primary))),
+                    InkWell(onTap: () => _launch('tel', r.riderPhone), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: AppColors.field, shape: BoxShape.circle), child: const Icon(Icons.call, color: AppColors.primary))),
                     const SizedBox(width: 6),
-                    InkWell(onTap: () => _launch('sms', r.riderPhone), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: Color(0xFFE9F1F5), shape: BoxShape.circle), child: const Icon(Icons.message, color: AppColors.primary))),
+                    InkWell(onTap: () => _launch('sms', r.riderPhone), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: AppColors.field, shape: BoxShape.circle), child: const Icon(Icons.message, color: AppColors.primary))),
                     const SizedBox(width: 6),
-                    InkWell(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RideChatScreen(rideId: r.id))), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: Color(0xFFE9F1F5), shape: BoxShape.circle), child: const Icon(Icons.chat_bubble_outline, color: AppColors.primary))),
+                    InkWell(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RideChatScreen(rideId: r.id))), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: AppColors.field, shape: BoxShape.circle), child: const Icon(Icons.chat_bubble_outline, color: AppColors.primary))),
                   ]),
                   const SizedBox(height: 12),
                   if (r.status == 'accepted') ...[

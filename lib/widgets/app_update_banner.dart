@@ -55,12 +55,12 @@ class AppUpdateBanner extends StatelessWidget {
       final url = (update['downloadUrl'] ?? '').toString();
       return Card(
         elevation: 3,
-        color: Colors.white,
+        color: AppColors.card,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           child: Row(
             children: [
-              const Icon(Icons.system_update_alt, color: AppColors.navy),
+              const Icon(Icons.system_update_alt, color: AppColors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -83,7 +83,7 @@ class AppUpdateBanner extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF52636D),
+                          color: Color(0xFFA9B4C2),
                         ),
                       ),
                   ],

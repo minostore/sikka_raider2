@@ -128,7 +128,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                       children: [
                         const Icon(
                           Icons.add_location_alt_rounded,
-                          color: Color(0xFFFFB800),
+                          color: Color(0xFFFFCC00),
                           size: 42,
                         ),
                         const Text(
@@ -143,7 +143,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                         const Text(
                           '— Sikka —',
                           style: TextStyle(
-                            color: Color(0xFFFFB800),
+                            color: Color(0xFFFFCC00),
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.2,
@@ -197,7 +197,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                                 TextSpan(
                                   text: s.title.split(' ').skip(1).join(' '),
                                   style: const TextStyle(
-                                    color: Color(0xFFFFB800),
+                                    color: Color(0xFFFFCC00),
                                   ),
                                 ),
                               ],
@@ -235,7 +235,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                                         .withValues(alpha: .8),
                                     borderRadius: BorderRadius.circular(36),
                                     border: Border.all(
-                                      color: const Color(0xFFFFB800),
+                                      color: const Color(0xFFFFCC00),
                                       width: 1.4,
                                     ),
                                     boxShadow: const [
@@ -255,10 +255,10 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                                         clipBehavior: Clip.antiAlias,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: const Color(0xFFFFB800)
+                                          color: const Color(0xFFFFCC00)
                                               .withValues(alpha: .12),
                                           border: Border.all(
-                                            color: const Color(0xFFFFB800)
+                                            color: const Color(0xFFFFCC00)
                                                 .withValues(alpha: .45),
                                           ),
                                         ),
@@ -280,7 +280,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                                                     s.icon,
                                                     size: 88,
                                                     color: const Color(
-                                                      0xFFFFB800,
+                                                      0xFFFFCC00,
                                                     ),
                                                   ),
                                             );
@@ -334,7 +334,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                                             height: 8,
                                             decoration: BoxDecoration(
                                               color: j == i % 3
-                                                  ? const Color(0xFFFFB800)
+                                                  ? const Color(0xFFFFCC00)
                                                   : Colors.white30,
                                               borderRadius:
                                                   BorderRadius.circular(8),
@@ -375,7 +375,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                     height: 10,
                     decoration: BoxDecoration(
                       color: i == _index
-                          ? const Color(0xFFFFB800)
+                          ? const Color(0xFFFFCC00)
                           : Colors.white38,
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -389,7 +389,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                   height: 60,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFB800),
+                      backgroundColor: const Color(0xFFFFCC00),
                       foregroundColor: const Color(0xFF061B31),
                       shape: const StadiumBorder(),
                       textStyle: const TextStyle(
@@ -431,7 +431,7 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
                       child: const Text(
                         'تسجيل الدخول',
                         style: TextStyle(
-                          color: Color(0xFFFFB800),
+                          color: Color(0xFFFFCC00),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -450,9 +450,9 @@ class _SikkaWelcomeState extends State<SikkaWelcome> {
     decoration: BoxDecoration(
       color: const Color(0xFF092849),
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFFFB800)),
+      border: Border.all(color: const Color(0xFFFFCC00)),
     ),
-    child: Icon(icon, color: const Color(0xFFFFB800), size: 25),
+    child: Icon(icon, color: const Color(0xFFFFCC00), size: 25),
   );
 }
 
@@ -481,7 +481,7 @@ class _CityPainter extends CustomPainter {
       }
     }
     final road = Paint()
-      ..color = const Color(0xFFFFB800)
+      ..color = const Color(0xFFFFCC00)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
