@@ -15,6 +15,7 @@ import '../widgets/app_map.dart';
 import '../widgets/common.dart';
 import '../widgets/map_utils.dart';
 import '../widgets/markers.dart';
+import '../widgets/back_guard.dart';
 import 'ride_chat_screen.dart';
 
 const _blue = Color(0xFF0A78FA);
@@ -78,13 +79,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
         if (current['driverId'] != myUid || current['status'] != expectedStatus) {
           throw StateError('حالة الرحلة تغيرت. حدّث الشاشة وحاول مرة أخرى.');
         }
-        final result = await ref.child('status').runTransaction((Object? value) {
-          if (value?.toString() != expectedStatus) return Transaction.abort();
-          return Transaction.success(up['status']);
-        });
-        if (!result.committed) throw StateError('حالة الرحلة تغيرت من جهاز آخر. حدّث الشاشة.');
-        final metadata = Map<String, Object?>.from(up)..remove('status');
-        if (metadata.isNotEmpty) await ref.update(metadata);
+        // تحديث مباشر بعد التحقق من الحالة الفعلية؛ قواعد قاعدة البيانات تتحقق من صحة الانتقال أيضاً
+        await ref.update(up);
       } else {
         await ref.update(up);
       }
@@ -100,45 +96,55 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
   }
 
   Future<void> _finish(Ride r) async {
+    if (_busy) return;
     if (!await confirmDialog(context, 'إنهاء الرحلة', 'هل وصلت إلى الوجهة؟\nالأجرة النهائية: ${money(r.finalPrice)} (نقداً)', yes: 'تأكيد إنهاء الرحلة')) return;
     setState(() => _busy = true);
+    var completedNow = false, completed = false;
     try {
-      final pctRaw = await DriverService.commissionPercent();
-      final pct = pctRaw.clamp(0.0, 100.0).toDouble();
       final rideRef = db.child('rides/${r.id}');
-      final completedAt = DateTime.now().millisecondsSinceEpoch;
-      // Update the state and settlement fields atomically so a completed ride
-      // cannot be left without its completion timestamp or commission.
-      final result = await rideRef.runTransaction((Object? value) {
-        if (value is! Map) return Transaction.abort();
-        final current = Map<String, dynamic>.from(value);
-        if (current['driverId'] != myUid || current['status'] != 'started') {
-          return Transaction.abort();
-        }
+      // نقرأ الحالة الفعلية من الخادم أولاً: لا نعتمد على معاملة (Transaction) لأنها قد تبدأ بقيمة فارغة وتُلغى خطأً
+      final current = asMap((await rideRef.get()).value);
+      if (current['driverId'] != myUid) throw StateError('هذه الرحلة غير مسندة إليك.');
+      final status = current['status']?.toString();
+      if (status == 'completed') {
+        completed = true; // أُنهيت بالفعل (مثلاً ضغطة مكررة) — ليست خطأ
+      } else if (status != 'started') {
+        throw StateError('لا يمكن إنهاء الرحلة قبل بدئها.');
+      } else {
         final fareValue = current['agreedPrice'] ?? current['price'];
-        if (fareValue is! num || !fareValue.isFinite || fareValue <= 0) {
-          return Transaction.abort();
-        }
+        if (fareValue is! num || !fareValue.isFinite || fareValue <= 0) throw StateError('سعر الرحلة غير صالح.');
+        final pct = (await DriverService.commissionPercent()).clamp(0.0, 100.0).toDouble();
         final fare = double.parse(fareValue.toDouble().toStringAsFixed(2));
         final commission = double.parse((fare * pct / 100).toStringAsFixed(2));
-        current['status'] = 'completed';
-        current['completedAt'] = completedAt;
-        current['commissionPercent'] = pct;
-        current['commission'] = commission;
-        current['finalPrice'] = fare;
-        current['driverNet'] = double.parse((fare - commission).toStringAsFixed(2));
-        return Transaction.success(current);
-      });
-      if (!result.committed) throw StateError('تم تحديث الرحلة من جهاز آخر أو أنها ليست قيد التنفيذ.');
-      await db.update({
-        'driverActive/$myUid': null,
-        'users/${r.riderId}/activeRide': null,
-      });
-      await db.child('drivers/$myUid/tripsCount').runTransaction((v) => Transaction.success(((v as num?) ?? 0).toInt() + 1));
-      await RideNotificationService.notifyStatus(rideId: r.id, status: 'completed', riderId: r.riderId, driverId: myUid);
-      LocationPublisher.setRide(null);
+        // تحديث واحد متعدد الحقول (ذري): الحالة + وقت الإنهاء + العمولة معاً
+        await rideRef.update({
+          'status': 'completed',
+          'completedAt': DateTime.now().millisecondsSinceEpoch,
+          'commissionPercent': pct,
+          'commission': commission,
+          'finalPrice': fare,
+          'driverNet': double.parse((fare - commission).toStringAsFixed(2)),
+        });
+        completed = true;
+        completedNow = true;
+      }
     } catch (e) {
-      if (mounted) showSnack(context, e is StateError ? e.message.toString() : 'تعذر إنهاء الرحلة', error: true);
+      if (mounted) showSnack(context, e is StateError ? e.message.toString() : 'تعذر إنهاء الرحلة. تحقق من الاتصال وحاول مرة أخرى.', error: true);
+    }
+    if (completed) {
+      // بعد نجاح الإنهاء: كل خطوة تنظيف مستقلة، وفشل أي منها لا يُظهر رسالة خطأ للسائق
+      Future<void> safe(Future<void> Function() step) async {
+        try {
+          await step();
+        } catch (_) {}
+      }
+      LocationPublisher.setRide(null);
+      await safe(() => db.child('driverActive/$myUid').remove());
+      await safe(() => db.child('users/${r.riderId}/activeRide').remove());
+      if (completedNow) {
+        await safe(() => db.child('drivers/$myUid/tripsCount').runTransaction((v) => Transaction.success(((v as num?) ?? 0).toInt() + 1)));
+        await safe(() => RideNotificationService.notifyStatus(rideId: r.id, status: 'completed', riderId: r.riderId, driverId: myUid));
+      }
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -151,18 +157,12 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
       if (current['driverId'] != myUid || !['accepted', 'arrived'].contains(current['status'])) {
         throw StateError('لا يمكن إلغاء الرحلة في حالتها الحالية.');
       }
-      final result = await ref.child('status').runTransaction((Object? value) {
-        if (!['accepted', 'arrived'].contains(value?.toString())) return Transaction.abort();
-        return Transaction.success('cancelled');
-      });
-      if (!result.committed) throw StateError('تم تحديث الرحلة من جهاز آخر.');
-      await ref.update({'cancelledBy': 'driver', 'cancelledAt': ServerValue.timestamp});
-      await db.update({
-        'driverActive/$myUid': null,
-        'users/${r.riderId}/activeRide': null,
-      });
-      await RideNotificationService.notifyStatus(rideId: r.id, status: 'cancelled', riderId: r.riderId, driverId: myUid);
+      await ref.update({'status': 'cancelled', 'cancelledBy': 'driver', 'cancelledAt': ServerValue.timestamp});
+      // بعد نجاح الإلغاء كل خطوة تنظيف مستقلة ولا تُظهر خطأً للسائق
       LocationPublisher.setRide(null);
+      try { await db.child('driverActive/$myUid').remove(); } catch (_) {}
+      try { await db.child('users/${r.riderId}/activeRide').remove(); } catch (_) {}
+      try { await RideNotificationService.notifyStatus(rideId: r.id, status: 'cancelled', riderId: r.riderId, driverId: myUid); } catch (_) {}
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) showSnack(context, e is StateError ? e.message.toString() : 'تعذر الإلغاء', error: true);
@@ -249,7 +249,12 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
               body = _active(r);
             }
           }
-          return Scaffold(appBar: AppBar(title: Text(_title(r))), body: body);
+          // أثناء الرحلة المؤكدة: الرجوع لا يعيد لصفحة سابقة؛ الضغطة الثانية تغلق التطبيق
+          final ended = s.hasData && (r?.status == 'completed' || r?.status == 'cancelled');
+          return DoubleBackExit(
+            enabled: !ended && r != null,
+            child: Scaffold(appBar: AppBar(title: Text(_title(r)), automaticallyImplyLeading: ended), body: body),
+          );
         },
       );
 

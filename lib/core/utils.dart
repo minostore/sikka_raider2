@@ -108,10 +108,15 @@ String errorMessage(Object error, {String fallback = 'حدث خطأ غير مت�
 
 void showSnack(BuildContext c, String msg, {bool error = false}) {
   if (!c.mounted) return;
-  ScaffoldMessenger.of(c).showSnackBar(SnackBar(
+  final m = ScaffoldMessenger.of(c);
+  // نُخفي الرسالة السابقة أولاً حتى لا تتراكم الرسائل وتبقى ظاهرة بعد زوال سببها
+  m.hideCurrentSnackBar();
+  m.showSnackBar(SnackBar(
     content: Text(msg),
     backgroundColor: error ? AppColors.red : AppColors.navy,
     behavior: SnackBarBehavior.floating,
+    duration: const Duration(seconds: 3),
+    dismissDirection: DismissDirection.horizontal,
   ));
 }
 

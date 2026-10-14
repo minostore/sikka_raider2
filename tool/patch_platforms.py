@@ -36,6 +36,21 @@ for _p in _extra:
         s = s.replace("<application", '    <uses-permission android:name="%s" />\n    <application' % _p, 1)
 mf.write_text(s, encoding="utf-8")
 
+# ---------- التطبيق المصغّر (flutter_overlay_window) للسائق ----------
+if ROLE == "driver":
+    s = mf.read_text(encoding="utf-8")
+    for _p in ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"]:
+        if _p not in s:
+            s = s.replace("<application", '    <uses-permission android:name="%s" />\n    <application' % _p, 1)
+    if "OverlayService" not in s:
+        s = s.replace("</application>", """        <service android:name="flutter.overlay.window.flutter_overlay_window.OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="driver_online_bubble" />
+        </service>
+    </application>""", 1)
+    mf.write_text(s, encoding="utf-8")
+
 for g in glob.glob("android/app/build.gradle*"):
     p = pathlib.Path(g); t = p.read_text(encoding="utf-8")
     # Android API 36 is required by flutter_plugin_android_lifecycle / file_picker.

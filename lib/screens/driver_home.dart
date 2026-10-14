@@ -7,6 +7,7 @@ import '../core/config.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../models/place.dart';
+import '../services/driver_overlay.dart';
 import '../services/driver_service.dart';
 import '../services/location_service.dart';
 import '../services/zone_service.dart';
@@ -96,6 +97,7 @@ class _DriverHomeState extends State<DriverHome> {
       }
       await db.child('drivers/$myUid/online').set(v);
       setState(() => _online = v);
+      if (v) unawaited(DriverOverlay.askPermissionOnce()); // إذن التطبيق المصغّر (مرة واحدة)
     } catch (e) {
       if (mounted) showLocationError(context, e);
     }
@@ -230,7 +232,7 @@ class _DriverHomeState extends State<DriverHome> {
               child: SizedBox(
                 height: 46,
                 child: AppButton('قبول', color: AppColors.green, onPressed: () async {
-                  final r = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => RequestDetailsScreen(requestId: id, data: m)));
+                  final r = await Navigator.push<String>(context, MaterialPageRoute(settings: const RouteSettings(name: 'request_details'), builder: (_) => RequestDetailsScreen(requestId: id, data: m)));
                   if (r == 'hide') setState(() => _hidden.add(id));
                 }),
               ),

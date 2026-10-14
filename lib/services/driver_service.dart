@@ -26,6 +26,7 @@ class LocationPublisher {
   static double _rating = 0;
   static String _vehicle = '';
   static final ValueNotifier<LatLng?> position = ValueNotifier(null);
+  static final ValueNotifier<bool> online = ValueNotifier(false);
   static bool get running => _sub != null;
 
   static Future<void> start() async {
@@ -47,6 +48,7 @@ class LocationPublisher {
       _publish();
     }, onError: (_) {});
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _publish());
+    online.value = true;
     try {
       final last = await LocationService.current();
       position.value = last;
@@ -96,6 +98,7 @@ class LocationPublisher {
     _sub = null;
     _timer = null;
     _rideId = null;
+    online.value = false;
     try {
       final uid = myUid;
       await db.child('onlineDrivers/$uid').remove();

@@ -4,7 +4,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'screens/splash_gate.dart';
+import 'services/driver_overlay.dart';
 import 'services/local_notify.dart';
+import 'services/nav_memory.dart';
 import 'services/zone_service.dart';
 
 Future<void> main() async {
@@ -17,6 +19,7 @@ Future<void> main() async {
   }
   if (initError == null) ZoneService.start();
   await LocalNotify.init();
+  await NavMemory.init();
   runApp(MishwarDriverApp(initError: initError));
 }
 
@@ -40,4 +43,11 @@ class MishwarDriverApp extends StatelessWidget {
             ? Scaffold(body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('تعذر تهيئة Firebase:\n$initError', textAlign: TextAlign.center))))
             : const SplashGate(),
       );
+}
+
+/// نقطة دخول الفقاعة العائمة (التطبيق المصغّر) — يستدعيها flutter_overlay_window.
+@pragma('vm:entry-point')
+void overlayMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: Material(color: Colors.transparent, child: OverlayBubble())));
 }

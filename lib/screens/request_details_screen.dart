@@ -29,7 +29,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
   final _note = TextEditingController(text: 'سأصل خلال دقائق');
   final _priceFocus = FocusNode();
   RouteInfo? _toPickup, _trip;
-  bool _sent = false, _busy = false, _gone = false;
+  bool _sent = false, _busy = false, _gone = false, _closing = false;
   Timer? _timer;
   StreamSubscription? _sub;
   StreamSubscription<DatabaseEvent>? _offsetSub;
@@ -49,10 +49,15 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
     }
     _left = ((expiry() - DateTime.now().millisecondsSinceEpoch - _serverOffsetMs) / 1000).round();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() { _left = ((expiry() - DateTime.now().millisecondsSinceEpoch - _serverOffsetMs) / 1000).ceil(); });
+      if (!mounted) return;
+      setState(() { _left = ((expiry() - DateTime.now().millisecondsSinceEpoch - _serverOffsetMs) / 1000).ceil(); });
+      if (_left <= 0) _autoClose();
     });
     _sub = db.child('openRequests/${widget.requestId}').onValue.listen((e) {
-      if (!e.snapshot.exists && mounted) setState(() => _gone = true);
+      if (!e.snapshot.exists && mounted) {
+        setState(() => _gone = true);
+        _autoClose();
+      }
     }, onError: (_) {});
     _route();
   }
@@ -68,6 +73,18 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
       _toPickup = p;
     });
     fitPoints(_map, [if (me != null) me, ...t.points]);
+  }
+
+  /// عند انتهاء الطلب أو عدم توفره: نعرض الرسالة لحظة ثم نغلق الشاشة ونُخفي الطلب من القائمة.
+  /// لا نغلق إلا لو كانت هذه الشاشة هي الظاهرة (حتى لا نغلق شاشة الرحلة لو قبل الراكب عرضك).
+  void _autoClose() {
+    if (_closing) return;
+    _closing = true;
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route != null && route.isCurrent) Navigator.pop(context, 'hide');
+    });
   }
 
   @override

@@ -50,7 +50,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           () => _broadcasts = asMap(e.snapshot.value).values
               .map((v) => asMap(v))
               .where(
-                (m) => m['audience'] == 'all' || m['audience'] == 'drivers',
+                (m) => (m['audience'] == 'all' || m['audience'] == 'drivers') && m['delivery'] != 'push',
               )
               .toList(),
         );
@@ -104,7 +104,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final items =
         [
-          ..._mine.values.map((m) => {...m, '_p': true}),
+          ..._mine.values.where((m) => m['delivery'] != 'push').map((m) => {...m, '_p': true}),
           ..._broadcasts,
         ]..sort(
           (a, b) => ((b['createdAt'] as num?) ?? 0).compareTo(

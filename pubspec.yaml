@@ -29,7 +29,11 @@ dependencies:
   url_launcher: ^6.3.1
   share_plus: ^11.0.0
   flutter_local_notifications: 19.3.0
+  firebase_messaging: ^16.0.0
+  shared_preferences: ^2.3.2
   audioplayers: ^6.1.0
+  flutter_overlay_window: ^0.5.0
+  android_intent_plus: ^6.0.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
