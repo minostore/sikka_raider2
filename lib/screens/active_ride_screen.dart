@@ -351,6 +351,8 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                   const SizedBox(height: 4),
                   Text('الوجهة: ${r.dest.address}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(height: 10),
+                  AppButton('ابدأ وجهتك', color: _blue, icon: Icons.navigation, onPressed: () => _navigate(r.dest.point)),
+                  const SizedBox(height: 8),
                   AppButton('إنهاء الرحلة', color: AppColors.red, onPressed: () => _finish(r), busy: _busy),
                 ] else ...[
                   if (r.status == 'accepted') ...[
@@ -373,9 +375,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                     InkWell(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RideChatScreen(rideId: r.id))), child: Container(padding: const EdgeInsets.all(11), decoration: const BoxDecoration(color: AppColors.field, shape: BoxShape.circle), child: const Icon(Icons.chat_bubble_outline, color: AppColors.primary))),
                   ]),
                   const SizedBox(height: 12),
+                  // ابدأ وجهتك: يفتح خرائط الهاتف للتوجيه إلى الراكب (قبل البدء) أو إلى نقطة إنهاء الرحلة
+                  AppButton('ابدأ وجهتك', color: _blue, icon: Icons.navigation, onPressed: () => _navigate(r.pickup.point)),
+                  const SizedBox(height: 8),
                   if (r.status == 'accepted') ...[
-                    AppButton('ابدأ التوجيه', color: _blue, icon: Icons.navigation, onPressed: () => _navigate(r.pickup.point)),
-                    const SizedBox(height: 8),
                     AppButton('تم الوصول', onPressed: () => _update({'status': 'arrived', 'arrivedAt': ServerValue.timestamp}, state: 'arrived', expectedStatus: 'accepted'), busy: _busy),
                   ],
                   if (r.status == 'arrived') ...[

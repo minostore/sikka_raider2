@@ -97,11 +97,24 @@ class _DriverHomeState extends State<DriverHome> {
       }
       await db.child('drivers/$myUid/online').set(v);
       setState(() => _online = v);
-      if (v) unawaited(DriverOverlay.askPermissionOnce()); // إذن التطبيق المصغّر (مرة واحدة)
+      if (v) unawaited(_ensureOverlayPermission());
     } catch (e) {
       if (mounted) showLocationError(context, e);
     }
     if (mounted) setState(() => _busy = false);
+  }
+
+  /// التطبيق المصغّر يحتاج إذن «العرض فوق التطبيقات»: لو غير مفعّل نشرح ونفتح الإعدادات.
+  Future<void> _ensureOverlayPermission() async {
+    if (await DriverOverlay.hasPermission() || !mounted) return;
+    final go = await confirmDialog(
+      context,
+      'تفعيل التطبيق المصغّر',
+      'لإظهار أيقونة سِكّة العائمة عند خروجك من التطبيق وأنت متصل، فعّل إذن «العرض فوق التطبيقات الأخرى» لتطبيق السائق.',
+      yes: 'فتح الإعدادات',
+      no: 'لاحقاً',
+    );
+    if (go) await DriverOverlay.requestPermission();
   }
 
   Widget _toggleBar() => GestureDetector(

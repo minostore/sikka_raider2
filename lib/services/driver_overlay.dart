@@ -5,19 +5,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../core/config.dart';
 import 'driver_service.dart';
-import 'nav_memory.dart';
 
 /// التطبيق المصغّر (فقاعة عائمة) يظهر فوق التطبيقات الأخرى عندما يخرج السائق من التطبيق
 /// وهو «متصل». إذا كان غير متصل لا تظهر. الضغط عليها يعيد فتح التطبيق.
 class DriverOverlay {
   static bool get _supported => Platform.isAndroid;
 
-  /// يطلب إذن «العرض فوق التطبيقات» مرة واحدة فقط عند أول اتصال.
-  static Future<void> askPermissionOnce() async {
-    if (!_supported || NavMemory.flag('overlay_asked')) return;
+  static Future<bool> hasPermission() async {
+    if (!_supported) return false;
     try {
-      if (await FlutterOverlayWindow.isPermissionGranted()) return;
-      NavMemory.setFlag('overlay_asked', true);
+      return await FlutterOverlayWindow.isPermissionGranted();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// يفتح شاشة إذن «العرض فوق التطبيقات الأخرى» في إعدادات الهاتف.
+  static Future<void> requestPermission() async {
+    if (!_supported) return;
+    try {
       await FlutterOverlayWindow.requestPermission();
     } catch (_) {}
   }

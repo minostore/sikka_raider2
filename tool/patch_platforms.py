@@ -140,6 +140,38 @@ if "SIKKA_FORCE_COMPILE_SDK" not in _t:
     _p.write_text(_block + _t, encoding="utf-8")
 print("forced compileSdk 36 for all subprojects in", _p)
 
+
+# ---------- Firebase Cloud Messaging (إشعارات ستارة الهاتف والتطبيق مغلق) ----------
+# ضع ملف google-services.json (من إعدادات مشروع Firebase لحزمة com.sikka.driver) في جذر المشروع؛ يُنسخ ويُفعَّل تلقائياً.
+import shutil
+_gs = pathlib.Path("google-services.json")
+if _gs.exists():
+    shutil.copy(_gs, "android/app/google-services.json")
+    GS_VER = "4.4.2"
+    for name in ("android/settings.gradle.kts", "android/settings.gradle"):
+        sp = pathlib.Path(name)
+        if sp.exists():
+            t = sp.read_text(encoding="utf-8")
+            if "com.google.gms.google-services" not in t:
+                if name.endswith(".kts"):
+                    t = re.sub(r'(plugins\s*\{)', lambda m: m.group(1) + '\n    id("com.google.gms.google-services") version "' + GS_VER + '" apply false', t, count=1)
+                else:
+                    t = re.sub(r'(plugins\s*\{)', lambda m: m.group(1) + '\n    id "com.google.gms.google-services" version "' + GS_VER + '" apply false', t, count=1)
+                sp.write_text(t, encoding="utf-8")
+    for name in ("android/app/build.gradle.kts", "android/app/build.gradle"):
+        ap = pathlib.Path(name)
+        if ap.exists():
+            t = ap.read_text(encoding="utf-8")
+            if "com.google.gms.google-services" not in t:
+                if name.endswith(".kts"):
+                    t = re.sub(r'(plugins\s*\{)', lambda m: m.group(1) + '\n    id("com.google.gms.google-services")', t, count=1)
+                else:
+                    t = re.sub(r'(plugins\s*\{)', lambda m: m.group(1) + '\n    id "com.google.gms.google-services"', t, count=1)
+                ap.write_text(t, encoding="utf-8")
+    print("google-services.json applied")
+else:
+    print("WARNING: google-services.json غير موجود — إشعارات FCM قد لا تصل والتطبيق مغلق")
+
 # ---------- iOS ----------
 plist = pathlib.Path("ios/Runner/Info.plist")
 t = plist.read_text(encoding="utf-8")
