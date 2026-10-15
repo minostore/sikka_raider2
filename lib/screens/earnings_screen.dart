@@ -14,7 +14,7 @@ class EarningsScreen extends StatefulWidget {
 
 class _EarningsScreenState extends State<EarningsScreen> {
   Future<List<Ride>> _f = DriverService.myRides();
-  String _p = 'week';
+  String _p = 'day';
   static const _dn = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
   static const _mn = ['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'];
 
@@ -84,19 +84,20 @@ class _EarningsScreenState extends State<EarningsScreen> {
             late List<String> labels;
             late List<double> vals;
             late bool Function(DateTime d, int i) hit;
-            if (_p == 'week') {
+            if (_p == 'day') {
+              // اليوم الحالي مقسّم إلى 6 فترات (كل فترة 4 ساعات)
+              from = t0;
+              labels = ['12-4 ص', '4-8 ص', '8-12 ص', '12-4 م', '4-8 م', '8-12 م'];
+              hit = (d, i) => d.year == t0.year && d.month == t0.month && d.day == t0.day && d.hour ~/ 4 == i;
+            } else if (_p == 'week') {
               from = t0.subtract(const Duration(days: 6));
               final days = List.generate(7, (i) => from.add(Duration(days: i)));
               labels = days.map((d) => _dn[d.weekday - 1]).toList();
               hit = (d, i) => d.year == days[i].year && d.month == days[i].month && d.day == days[i].day;
-            } else if (_p == 'month') {
+            } else {
               from = t0.subtract(const Duration(days: 27));
               labels = ['أسبوع 1', 'أسبوع 2', 'أسبوع 3', 'أسبوع 4'];
               hit = (d, i) => !d.isBefore(from.add(Duration(days: 7 * i))) && d.isBefore(from.add(Duration(days: 7 * (i + 1))));
-            } else {
-              from = DateTime(now.year, 1, 1);
-              labels = _mn;
-              hit = (d, i) => d.year == now.year && d.month == i + 1;
             }
             vals = List.filled(labels.length, 0);
             double total = 0, mins = 0;
@@ -132,7 +133,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 InfoCard(
                   padding: const EdgeInsets.all(14),
                   child: Column(children: [
-                    Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(12)), child: Row(children: [seg('year', 'سنوي'), seg('month', 'شهري'), seg('week', 'أسبوعي')])),
+                    Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(12)), child: Row(children: [seg('month', 'شهري'), seg('week', 'أسبوعي'), seg('day', 'يومي')])),
                     const SizedBox(height: 18),
                     Text(money(total), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900)),
                     const Text('إجمالي الأرباح', style: TextStyle(color: Colors.grey)),

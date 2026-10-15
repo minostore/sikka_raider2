@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
@@ -14,7 +15,9 @@ import 'splash_gate.dart';
 
 const _defaultUploadApi = 'https://sikka.mohamedmini2006.workers.dev'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
 
-const docLabels = {
+/// الأوراق المطلوبة الافتراضية. يمكن للإدارة تعديلها (الاسم/الصورة/الإضافة/الحذف) من لوحة التحكم
+/// ← الأوراق المطلوبة، وتظهر مباشرة في التطبيق عبر settings/requiredDocs.
+final Map<String, String> docLabels = {
   'license': 'رخصة القيادة',
   'registration': 'استمارة المركبة',
   'nationalId': 'الهوية الوطنية',
@@ -28,6 +31,100 @@ const docIcons = {
   'insurance': Icons.shield_outlined,
   'photo': Icons.account_box_outlined,
 };
+
+/// ورقة مطلوبة من السائق (اسم + صورة مثال اختيارية).
+class DocReq {
+  final String key, title;
+  final String? image;
+  const DocReq(this.key, this.title, [this.image]);
+}
+
+List<DocReq> get _defaultDocReqs => [for (final e in docLabels.entries) DocReq(e.key, e.value)];
+
+/// يقرأ الأوراق المطلوبة من لوحة التحكم ويحدّث docLabels (للأسماء في بقية الشاشات).
+Future<List<DocReq>> loadRequiredDocs() async {
+  try {
+    final raw = (await FirebaseDatabase.instance.ref('settings/requiredDocs').get()).value;
+    final entries = <MapEntry<String, Map<String, dynamic>>>[];
+    if (raw is Map) {
+      raw.forEach((k, v) {
+        if (v is Map) entries.add(MapEntry(k.toString(), Map<String, dynamic>.from(v)));
+      });
+    } else if (raw is List) {
+      for (var i = 0; i < raw.length; i++) {
+        final v = raw[i];
+        if (v is Map) entries.add(MapEntry('$i', Map<String, dynamic>.from(v)));
+      }
+    }
+    final list = entries.where((e) => e.value['active'] != false && (e.value['title'] ?? '').toString().trim().isNotEmpty).toList()
+      ..sort((a, b) => ((a.value['order'] as num?) ?? 0).compareTo((b.value['order'] as num?) ?? 0));
+    if (list.isEmpty) return _defaultDocReqs;
+    docLabels
+      ..clear()
+      ..addEntries(list.map((e) => MapEntry(e.key, e.value['title'].toString().trim())));
+    return [
+      for (final e in list)
+        DocReq(e.key, e.value['title'].toString().trim(), (e.value['image'] ?? '').toString().startsWith('https://') ? e.value['image'].toString() : null),
+    ];
+  } catch (_) {
+    return _defaultDocReqs;
+  }
+}
+
+/// ألوان المركبة (قابلة للتعديل من لوحة التحكم ← settings/vehicleColors).
+class VehicleColor {
+  final String name;
+  final Color color;
+  const VehicleColor(this.name, this.color);
+}
+
+const List<VehicleColor> _defaultColors = [
+  VehicleColor('أبيض', Color(0xFFFFFFFF)),
+  VehicleColor('أسود', Color(0xFF111111)),
+  VehicleColor('رمادي', Color(0xFF808080)),
+  VehicleColor('فضي', Color(0xFFC0C0C0)),
+  VehicleColor('أحمر', Color(0xFFD32F2F)),
+  VehicleColor('أزرق', Color(0xFF1976D2)),
+  VehicleColor('أخضر', Color(0xFF388E3C)),
+  VehicleColor('أصفر', Color(0xFFFBC02D)),
+  VehicleColor('برتقالي', Color(0xFFF57C00)),
+  VehicleColor('بني', Color(0xFF6D4C41)),
+];
+
+Color _parseHex(String? hex, Color fallback) {
+  var h = (hex ?? '').trim().replaceFirst('#', '');
+  if (h.length == 6) h = 'FF$h';
+  final v = int.tryParse(h, radix: 16);
+  return v == null || h.length != 8 ? fallback : Color(v);
+}
+
+Future<List<VehicleColor>> loadVehicleColors() async {
+  try {
+    final raw = (await FirebaseDatabase.instance.ref('settings/vehicleColors').get()).value;
+    final vals = raw is Map ? raw.values.toList() : raw is List ? raw : const [];
+    final list = <VehicleColor>[
+      for (final v in vals)
+        if (v is Map && (v['name'] ?? '').toString().trim().isNotEmpty) VehicleColor(v['name'].toString().trim(), _parseHex(v['hex']?.toString(), Colors.grey)),
+    ];
+    return list.isEmpty ? _defaultColors : list;
+  } catch (_) {
+    return _defaultColors;
+  }
+}
+
+/// صور وسائل النقل (نفس صور تطبيق المستخدم، من لوحة التحكم ← settings/vehicleImages).
+Future<Map<String, String>> loadVehicleImages() async {
+  try {
+    final v = (await FirebaseDatabase.instance.ref('settings/vehicleImages').get()).value;
+    if (v is Map) {
+      return {
+        for (final e in v.entries)
+          if (e.value is String && (e.value as String).startsWith('https://')) e.key.toString(): e.value as String,
+      };
+    }
+  } catch (_) {}
+  return {};
+}
 
 /// الخطوة 2: بيانات المركبة — الخطوة 3: رفع المستندات
 class DocsScreen extends StatefulWidget {
@@ -43,12 +140,33 @@ class _DocsScreenState extends State<DocsScreen> {
   late String _vtype = (_veh['type'] ?? '').toString();
   late final _model = TextEditingController(text: _veh['model']?.toString() ?? '');
   late final _year = TextEditingController(text: _veh['year']?.toString() ?? '');
-  late final _color = TextEditingController(text: _veh['color']?.toString() ?? '');
-  late final _plate = TextEditingController(text: _veh['plate']?.toString() ?? '');
+  late String _color = (_veh['color'] ?? '').toString();
+  // اللوحة: حروف (حتى 3) منفصلة عن الأرقام (حتى 4)
+  late final _plateLetters = TextEditingController(text: _veh['plateLetters']?.toString() ?? '');
+  late final _plateDigits = TextEditingController(text: _veh['plateDigits']?.toString() ?? '');
+  List<VehicleColor> _colors = _defaultColors;
+  List<DocReq> _reqDocs = _defaultDocReqs;
+  Map<String, String> _vehicleImages = {};
   late final Map<String, dynamic> _docs = asMap(widget.data['docs']);
   final Set<String> _uploading = {};
   bool _busy = false;
   late int _step = (_veh['plate'] ?? '').toString().isNotEmpty ? 3 : 2;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final r = await Future.wait<Object>([loadVehicleColors(), loadRequiredDocs(), loadVehicleImages()]);
+    if (!mounted) return;
+    setState(() {
+      _colors = r[0] as List<VehicleColor>;
+      _reqDocs = r[1] as List<DocReq>;
+      _vehicleImages = r[2] as Map<String, String>;
+    });
+  }
 
   bool _has(String k) {
     final d = asMap(_docs[k]);
@@ -101,10 +219,26 @@ class _DocsScreenState extends State<DocsScreen> {
 
   Future<void> _vehicleNext() async {
     if (_vtype.isEmpty) return showSnack(context, 'اختر نوع الوسيلة (موتوسيكل أو اسكوتر)', error: true);
-    if ([_model, _year, _color, _plate].any((c) => c.text.trim().isEmpty)) return showSnack(context, 'أكمل بيانات المركبة', error: true);
+    if (_model.text.trim().isEmpty) return showSnack(context, 'أدخل موديل المركبة', error: true);
+    final year = int.tryParse(_year.text.trim());
+    if (_year.text.trim().length != 4 || year == null || year < 1980 || year > DateTime.now().year + 1) {
+      return showSnack(context, 'أدخل سنة صنع صحيحة من 4 أرقام', error: true);
+    }
+    if (_color.isEmpty) return showSnack(context, 'اختر لون المركبة', error: true);
+    final letters = _plateLetters.text.trim(), digits = _plateDigits.text.trim();
+    if (letters.isEmpty || letters.length > 3) return showSnack(context, 'أدخل حروف اللوحة (حتى 3 حروف)', error: true);
+    if (digits.isEmpty || digits.length > 4) return showSnack(context, 'أدخل أرقام اللوحة (حتى 4 أرقام)', error: true);
     setState(() => _busy = true);
     try {
-      await FirebaseDatabase.instance.ref('drivers/$_uid/vehicle').set({'type': _vtype, 'model': _model.text.trim(), 'year': _year.text.trim(), 'color': _color.text.trim(), 'plate': _plate.text.trim()});
+      await FirebaseDatabase.instance.ref('drivers/$_uid/vehicle').set({
+        'type': _vtype,
+        'model': _model.text.trim(),
+        'year': _year.text.trim(),
+        'color': _color,
+        'plateLetters': letters,
+        'plateDigits': digits,
+        'plate': '$digits ${letters.split('').join(' ')}',
+      });
       setState(() => _step = 3);
     } catch (e) {
       showSnack(context, AuthService.message(e), error: true);
@@ -113,8 +247,8 @@ class _DocsScreenState extends State<DocsScreen> {
   }
 
   Future<void> _submit() async {
-    final missing = docLabels.keys.where((k) => !_has(k));
-    if (missing.isNotEmpty) return showSnack(context, 'ارفع: ${missing.map((k) => docLabels[k]).join('، ')}', error: true);
+    final missing = _reqDocs.where((d) => !_has(d.key));
+    if (missing.isNotEmpty) return showSnack(context, 'ارفع: ${missing.map((d) => d.title).join('، ')}', error: true);
     setState(() => _busy = true);
     try {
       await FirebaseDatabase.instance.ref('drivers/$_uid').update({'status': 'pending', 'submittedAt': ServerValue.timestamp});
@@ -125,12 +259,38 @@ class _DocsScreenState extends State<DocsScreen> {
     if (mounted) setState(() => _busy = false);
   }
 
+  Widget _typeCard(String type, String label, IconData icon) {
+    final sel = _vtype == type;
+    final img = _vehicleImages[type];
+    return InkWell(
+      onTap: () => setState(() => _vtype = type),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.field,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: sel ? AppColors.primary : AppColors.border, width: sel ? 2 : 1),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(
+            height: 70,
+            child: img != null ? Image.network(img, fit: BoxFit.contain, errorBuilder: (_, __, ___) => Icon(icon, size: 44, color: AppColors.ink)) : Icon(icon, size: 44, color: AppColors.ink),
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: sel ? AppColors.primary : Colors.white)),
+        ]),
+      ),
+    );
+  }
+
   Widget _f(TextEditingController c, String h, IconData i, {bool num = false}) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextField(controller: c, keyboardType: num ? TextInputType.number : null, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, h, i)),
       );
 
-  Widget _docRow(String k) {
+  Widget _docRow(DocReq req) {
+    final k = req.key;
     final d = asMap(_docs[k]);
     final st = d['status']?.toString();
     final up = _uploading.contains(k);
@@ -139,10 +299,18 @@ class _DocsScreenState extends State<DocsScreen> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(10)), child: Icon(docIcons[k], color: AppColors.ink)),
+          Container(
+            width: 42,
+            height: 42,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(color: AppColors.field, borderRadius: BorderRadius.circular(10)),
+            child: req.image != null
+                ? Image.network(req.image!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(docIcons[k] ?? Icons.description_outlined, color: AppColors.ink))
+                : Icon(docIcons[k] ?? Icons.description_outlined, color: AppColors.ink),
+          ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(docLabels[k]!, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(req.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             if (st == 'rejected') Text('مرفوض: ${d['note'] ?? 'أعد الرفع'}', style: const TextStyle(color: AppColors.red, fontSize: 12)),
           ])),
           up
@@ -167,29 +335,66 @@ class _DocsScreenState extends State<DocsScreen> {
               const Text('نوع الوسيلة', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Row(children: [
-                Expanded(child: ChoiceChip(
-                  label: const SizedBox(width: double.infinity, child: Text('موتوسيكل', textAlign: TextAlign.center)),
-                  avatar: const Icon(Icons.two_wheeler, size: 20),
-                  selected: _vtype == 'motorcycle',
-                  onSelected: (_) => setState(() => _vtype = 'motorcycle'),
-                )),
-                const SizedBox(width: 8),
-                Expanded(child: ChoiceChip(
-                  label: const SizedBox(width: double.infinity, child: Text('اسكوتر', textAlign: TextAlign.center)),
-                  avatar: const Icon(Icons.moped, size: 20),
-                  selected: _vtype == 'scooter',
-                  onSelected: (_) => setState(() => _vtype = 'scooter'),
-                )),
+                Expanded(child: _typeCard('motorcycle', 'موتوسيكل', Icons.two_wheeler)),
+                const SizedBox(width: 10),
+                Expanded(child: _typeCard('scooter', 'اسكوتر', Icons.moped)),
               ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _f(_model, 'الموديل (مثال: هوندا 125)', Icons.two_wheeler),
-              _f(_year, 'سنة الصنع', Icons.calendar_today_outlined, num: true),
-              _f(_color, 'اللون', Icons.palette_outlined),
-              _f(_plate, 'رقم اللوحة', Icons.pin_outlined),
-              const SizedBox(height: 10),
+              // سنة الصنع: 4 أرقام كحد أقصى
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextField(
+                  controller: _year,
+                  keyboardType: TextInputType.number,
+                  maxLength: 4,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                  style: const TextStyle(color: Colors.white),
+                  decoration: fieldDec(context, 'سنة الصنع (4 أرقام)', Icons.calendar_today_outlined).copyWith(counterText: ''),
+                ),
+              ),
+              const Text('اللون', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final c in _colors)
+                  ChoiceChip(
+                    avatar: CircleAvatar(radius: 9, backgroundColor: c.color, child: _color == c.name ? Icon(Icons.check, size: 12, color: c.color.computeLuminance() > 0.5 ? Colors.black : Colors.white) : null),
+                    label: Text(c.name),
+                    selected: _color == c.name,
+                    onSelected: (_) => setState(() => _color = c.name),
+                  ),
+              ]),
+              const SizedBox(height: 14),
+              const Text('رقم اللوحة', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(children: [
+                // الأرقام (حتى 4) ثم الحروف (حتى 3) في خانتين منفصلتين
+                Expanded(
+                  child: TextField(
+                    controller: _plateDigits,
+                    keyboardType: TextInputType.number,
+                    maxLength: 4,
+                    textAlign: TextAlign.center,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 3),
+                    decoration: fieldDec(context, 'الأرقام', Icons.pin_outlined).copyWith(counterText: ''),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _plateLetters,
+                    maxLength: 3,
+                    textAlign: TextAlign.center,
+                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\u0621-\u064Aa-zA-Z]')), LengthLimitingTextInputFormatter(3)],
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 3),
+                    decoration: fieldDec(context, 'الحروف', Icons.abc).copyWith(counterText: ''),
+                  ),
+                ),
+              ]),
               AppButton('التالي', onPressed: _vehicleNext, busy: _busy),
             ] else ...[
-              InfoCard(child: Column(children: [for (final k in docLabels.keys) ...[_docRow(k), if (k != docLabels.keys.last) const Divider(height: 1)]])),
+              InfoCard(child: Column(children: [for (final d in _reqDocs) ...[_docRow(d), if (d != _reqDocs.last) const Divider(height: 1)]])),
               const SizedBox(height: 18),
               AppButton('إرسال المستندات', onPressed: _uploading.isEmpty ? _submit : null, busy: _busy),
               TextButton(onPressed: () => setState(() => _step = 2), child: const Text('تعديل بيانات المركبة', style: TextStyle(color: Colors.white70))),

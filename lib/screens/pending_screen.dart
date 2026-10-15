@@ -43,7 +43,13 @@ class PendingScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Text(rejected ? (data['rejectReason'] ?? 'عدّل المستندات المرفوضة وأعد الإرسال.').toString() : 'سنقوم بمراجعة مستنداتك\nوإشعارك قريباً', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.5)),
           const SizedBox(height: 26),
-          InfoCard(child: Column(children: [for (final e in docLabels.entries) row(e.value, asMap(docs[e.key])['status']?.toString() ?? 'pending'), row('الموافقة النهائية', 'pending')])),
+          FutureBuilder<List<DocReq>>(
+            future: loadRequiredDocs(),
+            builder: (context, snap) {
+              final reqs = snap.data ?? [for (final e in docLabels.entries) DocReq(e.key, e.value)];
+              return InfoCard(child: Column(children: [for (final d in reqs) row(d.title, asMap(docs[d.key])['status']?.toString() ?? 'pending'), row('الموافقة النهائية', 'pending')]));
+            },
+          ),
           const SizedBox(height: 18),
           if (rejected) AppButton('تعديل المستندات', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DocsScreen(data: data)))),
           TextButton(

@@ -4,6 +4,7 @@ import '../core/theme.dart';
 import '../core/utils.dart';
 import '../services/auth_service.dart';
 import '../widgets/common.dart';
+import '../widgets/phone_field.dart';
 
 /// مشهد غروب على الطريق (الشاشة الافتتاحية)
 class RoadPainter extends CustomPainter {
@@ -122,10 +123,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _remember = true, _busy = false;
 
   Future<void> _login() async {
-    if (!AuthService.isValidPhone(_phone.text) || _pass.text.isEmpty) return showSnack(context, 'أدخل رقم موبايل مصري صحيح وكلمة المرور', error: true);
+    if (!PhoneField.isValid(_phone.text) || _pass.text.isEmpty) return showSnack(context, PhoneField.errorText, error: true);
     setState(() => _busy = true);
     try {
-      await AuthService.signIn(_phone.text, _pass.text);
+      await AuthService.signIn(PhoneField.full(_phone.text), _pass.text);
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => widget.homeBuilder()), (r) => false);
     } catch (e) {
@@ -142,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 18),
             const Text('تسجيل الدخول', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
             const SizedBox(height: 28),
-            TextField(controller: _phone, keyboardType: TextInputType.phone, textDirection: TextDirection.ltr, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'رقم الهاتف', Icons.smartphone)),
+            PhoneField(controller: _phone),
             const SizedBox(height: 14),
             TextField(controller: _pass, obscureText: true, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'كلمة المرور', Icons.lock_outline)),
             const SizedBox(height: 6),
@@ -179,19 +180,27 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _name = TextEditingController(), _phone = TextEditingController(), _email = TextEditingController(), _pass = TextEditingController();
-  String? _city;
+  final _first = TextEditingController(), _last = TextEditingController(), _phone = TextEditingController(), _email = TextEditingController(), _pass = TextEditingController(), _pass2 = TextEditingController();
   bool _busy = false;
-  static const cities = ['القاهرة', 'الجيزة', 'الإسكندرية', 'الأقصر', 'أسوان', 'سوهاج', 'أسيوط', 'المنيا', 'قنا', 'الشرقية', 'الدقهلية', 'الغربية', 'المنوفية', 'القليوبية', 'البحيرة', 'بورسعيد', 'السويس', 'الإسماعيلية', 'أخرى'];
 
   Future<void> _next() async {
-    if (_name.text.trim().length < 3) return showSnack(context, 'أدخل الاسم الكامل', error: true);
-    if (!AuthService.isValidPhone(_phone.text)) return showSnack(context, 'أدخل رقم موبايل مصري صحيح (مثال: 01012345678)', error: true);
-    if (_email.text.isNotEmpty && !_email.text.contains('@')) return showSnack(context, 'البريد الإلكتروني غير صحيح', error: true);
+    final first = _first.text.trim(), last = _last.text.trim();
+    if (first.length < 2) return showSnack(context, 'أدخل الاسم الأول', error: true);
+    if (last.length < 2) return showSnack(context, 'أدخل الاسم الثاني', error: true);
+    if (!PhoneField.isValid(_phone.text)) return showSnack(context, PhoneField.errorText, error: true);
+    if (!_email.text.contains('@') || !_email.text.contains('.')) return showSnack(context, 'أدخل بريداً إلكترونياً صحيحاً', error: true);
     if (_pass.text.length < 6) return showSnack(context, 'كلمة المرور 6 أحرف على الأقل', error: true);
+    if (_pass.text != _pass2.text) return showSnack(context, 'كلمتا المرور غير متطابقتين', error: true);
     setState(() => _busy = true);
     try {
-      await AuthService.register(name: _name.text.trim(), phone: _phone.text, email: _email.text.trim(), password: _pass.text, city: _city);
+      await AuthService.register(
+        name: '$first $last',
+        firstName: first,
+        lastName: last,
+        phone: PhoneField.full(_phone.text),
+        email: _email.text.trim(),
+        password: _pass.text,
+      );
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => widget.homeBuilder()), (r) => false);
     } catch (e) {
@@ -208,22 +217,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 22),
             const StepperHeader(1),
             const SizedBox(height: 26),
-            TextField(controller: _name, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'الاسم الكامل', Icons.person_outline)),
+            Row(children: [
+              Expanded(child: TextField(controller: _first, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'الاسم الأول', Icons.person_outline))),
+              const SizedBox(width: 10),
+              Expanded(child: TextField(controller: _last, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'الاسم الثاني', Icons.person_outline))),
+            ]),
             const SizedBox(height: 12),
-            TextField(controller: _phone, keyboardType: TextInputType.phone, textDirection: TextDirection.ltr, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'رقم الهاتف', Icons.smartphone)),
+            PhoneField(controller: _phone),
             const SizedBox(height: 12),
             TextField(controller: _email, keyboardType: TextInputType.emailAddress, textDirection: TextDirection.ltr, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'البريد الإلكتروني', Icons.mail_outline)),
             const SizedBox(height: 12),
             TextField(controller: _pass, obscureText: true, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'كلمة المرور', Icons.lock_outline)),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _city,
-              dropdownColor: AppColors.field,
-              style: const TextStyle(color: Colors.white),
-              decoration: fieldDec(context, 'المدينة (اختياري)', Icons.location_city),
-              items: cities.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-              onChanged: (v) => setState(() => _city = v),
-            ),
+            TextField(controller: _pass2, obscureText: true, style: const TextStyle(color: Colors.white), decoration: fieldDec(context, 'تأكيد كلمة المرور', Icons.lock_reset)),
             const SizedBox(height: 20),
             AppButton('التالي', onPressed: _next, busy: _busy),
             Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('لدي حساب — تسجيل الدخول', style: TextStyle(color: Colors.white70)))),
@@ -231,4 +237,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
 }
-

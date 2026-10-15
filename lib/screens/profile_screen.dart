@@ -11,6 +11,7 @@ import 'ticket_chat_screen.dart';
 import '../widgets/common.dart';
 import 'ratings_screen.dart';
 import 'support_tickets_screen.dart';
+import 'support_home_screen.dart';
 import 'splash_gate.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -149,7 +150,8 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final hasPhoto = photo.startsWith('http');
     return Row(children: [
       GestureDetector(
-        onTap: _changePhoto,
+        // تعديل الملف الشخصي (بما فيه الصورة) يتم عبر خدمة العملاء فقط
+        onTap: () => contactSupportForEdit(context),
         child: Stack(children: [
           CircleAvatar(
             radius: 36,
@@ -162,15 +164,6 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
                     : name.isEmpty
                         ? const Icon(Icons.person, size: 38, color: AppColors.navy)
                         : Text(name.characters.first, style: const TextStyle(fontSize: 30, color: AppColors.navy, fontWeight: FontWeight.w900)),
-          ),
-          PositionedDirectional(
-            bottom: 0,
-            end: 0,
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: AppColors.navy, width: 2)),
-              child: const Icon(Icons.photo_camera, size: 15, color: AppColors.navy),
-            ),
           ),
         ]),
       ),
@@ -190,6 +183,24 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
   }
 }
 
+/// السائق لا يعدّل ملفه الشخصي ولا بيانات مركبته بنفسه: يتواصل مع خدمة العملاء.
+Future<void> contactSupportForEdit(BuildContext context) async {
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('تعديل البيانات'),
+      content: const Text('لا يمكن تعديل الملف الشخصي أو معلومات المركبة من التطبيق. يرجى التواصل مع خدمة العملاء لتعديلها.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إغلاق')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('التواصل مع خدمة العملاء')),
+      ],
+    ),
+  );
+  if (go == true && context.mounted) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportHomeScreen(role: 'driver')));
+  }
+}
+
 class _InfoScreen extends StatelessWidget {
   final Map<String, dynamic> m;
   const _InfoScreen(this.m);
@@ -200,9 +211,11 @@ class _InfoScreen extends StatelessWidget {
           InfoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             ListTile(leading: const Icon(Icons.person_outline), title: const Text('الاسم'), subtitle: Text('${m['name'] ?? ''}')),
             ListTile(leading: const Icon(Icons.phone_outlined), title: const Text('الموبايل'), subtitle: Text('+${m['phone'] ?? ''}', textDirection: TextDirection.ltr, textAlign: TextAlign.start)),
-            ListTile(leading: const Icon(Icons.location_city), title: const Text('المدينة'), subtitle: Text('${m['city'] ?? ''}')),
+            if ((m['email'] ?? '').toString().isNotEmpty) ListTile(leading: const Icon(Icons.mail_outline), title: const Text('البريد الإلكتروني'), subtitle: Text('${m['email']}', textDirection: TextDirection.ltr, textAlign: TextAlign.start)),
             ListTile(leading: const Icon(Icons.directions_car_outlined), title: const Text('عدد الرحلات'), subtitle: Text('${m['tripsCount'] ?? 0}')),
           ])),
+          const SizedBox(height: 14),
+          AppButton('تعديل الملف الشخصي', onPressed: () => contactSupportForEdit(context)),
         ]),
       );
 }
@@ -211,26 +224,6 @@ class _InfoScreen extends StatelessWidget {
 class VehicleScreen extends StatelessWidget {
   final Map<String, dynamic> m;
   const VehicleScreen(this.m, {super.key});
-
-  Future<void> _edit(BuildContext context, Map<String, dynamic> v) async {
-    final ctl = {for (final k in ['model', 'year', 'color', 'plate']) k: TextEditingController(text: v[k]?.toString() ?? '')};
-    final labels = {'model': 'نوع المركبة', 'year': 'سنة الصنع', 'color': 'اللون', 'plate': 'رقم اللوحة'};
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تعديل بيانات المركبة'),
-        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [for (final k in ctl.keys) Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: ctl[k], decoration: InputDecoration(labelText: labels[k])))])),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حفظ'))],
-      ),
-    );
-    if (ok == true && ctl.values.every((c) => c.text.trim().isNotEmpty)) {
-      await db.update({'drivers/$myUid/vehicle': {for (final e in ctl.entries) e.key: e.value.text.trim()}, 'drivers/$myUid/vehicleReviewStatus': 'pending', 'drivers/$myUid/status': 'pending', 'drivers/$myUid/online': false, 'onlineDrivers/$myUid': null});
-      if (context.mounted) {
-        showSnack(context, 'تم إرسال بيانات المركبة الجديدة للمراجعة. لن تتمكن من استقبال رحلات حتى اعتمادها.');
-        Navigator.pop(context);
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +243,9 @@ class VehicleScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text('حالة المراجعة: ${m['vehicleReviewStatus'] == 'pending' ? 'قيد المراجعة' : 'معتمدة'}', style: TextStyle(color: m['vehicleReviewStatus'] == 'pending' ? AppColors.orange : AppColors.green)),
             const SizedBox(height: 10),
-            AppButton('تعديل البيانات وإرسالها للمراجعة', onPressed: () => _edit(context, v)),
+            const Text('لا يمكن تعديل معلومات المركبة من التطبيق. للتعديل يرجى التواصل مع خدمة العملاء.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 10),
+            AppButton('التواصل مع خدمة العملاء', onPressed: () => contactSupportForEdit(context)),
           ]),
         ),
       ]),
