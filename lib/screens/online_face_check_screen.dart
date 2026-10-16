@@ -124,15 +124,14 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
   }
 
   Future<FaceVerifyResult> _compare(File shot) async {
+    // The trusted server performs selfie-to-selfie matching and issues the
+    // short-lived authorization required by Firebase rules. Face detection alone
+    // must never grant online access.
     try {
-      final r = await FaceVerifyService.verifyOnlineSelfie(shot);
-      final reason = (r.reason ?? '').toLowerCase();
-      final notReady = r.status != 'verified' && (reason.contains('config') || reason.contains('unavailable') || reason.contains('not_ready'));
-      if (!notReady) return r;
+      return await FaceVerifyService.verifyOnlineSelfie(shot);
     } catch (_) {
-      // الخادم غير مضبوط أو غير متاح: نكمل بالمقارنة على الجهاز.
+      return const FaceVerifyResult('failed', 'service_unavailable');
     }
-    return FaceVerifyService.verifyOnlineLocal(shot);
   }
 
   Future<void> _captureAndVerify() async {
@@ -144,7 +143,7 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
       if (c.value.isStreamingImages) await c.stopImageStream();
       final shot = await c.takePicture();
       if (!mounted) return;
-      setState(() => _message = 'جارٍ مقارنة الوجه بالصورة المعتمدة…');
+      setState(() => _message = 'جارٍ مقارنة وجهك بالسيلفي المعتمدة…');
       final result = await _compare(File(shot.path));
       if (!mounted) return;
       if (result.status == 'verified') {
@@ -162,8 +161,9 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
             'bad_angle' => 'انظر مباشرة إلى الكاميرا دون إمالة.',
             'low_similarity' || 'borderline' => 'الوجه غير مطابق للصورة المعتمدة. أعد المحاولة بإضاءة جيدة.',
             'model_missing' => 'نموذج التحقق غير مثبت في التطبيق. تواصل مع الدعم.',
+            'service_unavailable' => 'خدمة التحقق غير متاحة الآن. أعد المحاولة بعد قليل.',
             'no_reference' => 'لا توجد صورة معتمدة للمقارنة. تواصل مع الدعم.',
-            'approved_selfie_missing' => 'لا توجد صورة سيلفي معتمدة. تواصل مع الدعم.',
+            'approved_selfie_missing' => 'لا توجد صورة سيلفي معتمدة. ارفع السيلفي أولًا أو تواصل مع الدعم.',
             _ => 'تعذر تأكيد الهوية (${result.reason ?? 'سبب غير معروف'}). أعد المحاولة.'
           };
           _blinkClosed = false; _blinkDone = false; _turned = false; _returnedCenter = false; _initialYaw = null;
@@ -192,7 +192,7 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
       appBar: AppBar(title: const Text('التحقق من الوجه'), backgroundColor: const Color(0xFF071426), foregroundColor: Colors.white),
       body: SafeArea(child: Column(children: [
         const SizedBox(height: 18),
-        const Padding(padding: EdgeInsets.symmetric(horizontal: 24), child: Text('لأمان حسابك، التقط التطبيق صورة جديدة بعد التأكد من حركة الوجه، ثم يقارنها بصورة المستندات المعتمدة.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 15))),
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 24), child: Text('لأمان حسابك، التقط التطبيق صورة جديدة بعد التأكد من حركة الوجه، ثم يقارنها بصورة السيلفي التي رفعتها سابقًا، وليس بصورة البطاقة.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 15))),
         const SizedBox(height: 18),
         Expanded(child: Center(child: c != null && c.value.isInitialized
           ? ClipRRect(borderRadius: BorderRadius.circular(24), child: AspectRatio(aspectRatio: 1 / c.value.aspectRatio, child: CameraPreview(c)))
