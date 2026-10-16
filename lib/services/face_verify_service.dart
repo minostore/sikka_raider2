@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
@@ -123,6 +124,25 @@ class FaceVerifyService {
     final res = await http
         .post(Uri.parse('$base/api/driver/face-verify'), headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}, body: '{}')
         .timeout(const Duration(seconds: 60));
+    final j = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception((j is Map ? j['error'] : null)?.toString() ?? 'تعذر التحقق (HTTP ${res.statusCode})');
+    }
+    return FaceVerifyResult((j['status'] ?? 'review').toString(), j['reason']?.toString());
+  }
+
+  /// يتحقق الخادم من صورة حية جديدة مقابل صورة السيلفي المعتمدة والمستندات؛ لا تُحفظ الصورة الجديدة.
+  static Future<FaceVerifyResult> verifyOnlineSelfie(File selfie) async {
+    final base = await _base();
+    if (base.isEmpty) throw Exception('عنوان خادم التحقق غير مضبوط (settings/adminApiUrl).');
+    final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
+    final bytes = await selfie.readAsBytes();
+    final encoded = base64Encode(bytes);
+    final res = await http.post(
+      Uri.parse('$base/api/driver/online-face-verify'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode({'selfieBase64': encoded}),
+    ).timeout(const Duration(seconds: 45));
     final j = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception((j is Map ? j['error'] : null)?.toString() ?? 'تعذر التحقق (HTTP ${res.statusCode})');

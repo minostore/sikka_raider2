@@ -75,6 +75,8 @@ jobs:
           exit 1
       - name: ترحيل ملفات Android Gradle أولاً
         run: flutter build apk --release --target-platform android-arm64 --config-only
+      - name: إصلاح توافق Java وKotlin في التطبيق وكل الإضافات
+        run: python3 tool/patch_platforms.py "com.sikka.driver"
       - name: فرض Android compileSdk 36 في كل ملفات Gradle والتحقق
         shell: bash
         run: |
@@ -92,9 +94,20 @@ jobs:
                   s, n2 = re.subn(r"(?m)^(\s*)compileSdkVersion\s+.*$", r"\g<1>compileSdkVersion 36", s)
                   if n2 == 0:
                       raise SystemExit(f"ERROR: compileSdk declaration not found in {p}")
+              # Align Java and Kotlin bytecode targets to 17; tflite_flutter uses Kotlin 17.
+              if p.name.endswith(".kts"):
+                  if "targetCompatibility = JavaVersion.VERSION_17" not in s:
+                      s = re.sub(r"(compileOptions\s*\{)", r"\1\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17", s, count=1)
+                  if "jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)" not in s:
+                      s += '\nkotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }\n'
+              else:
+                  if "targetCompatibility JavaVersion.VERSION_17" not in s:
+                      s = re.sub(r"(compileOptions\s*\{)", r"\1\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17", s, count=1)
+                  if not re.search(r"(?m)^\s*jvmTarget\s*=\s*'17'", s):
+                      s = re.sub(r"(kotlinOptions\s*\{)", r"\1\n        jvmTarget = '17'", s, count=1) if "kotlinOptions" in s else s + "\nkotlinOptions { jvmTarget = '17' }\n"
               p.write_text(s)
               print(f"--- {p} ---")
-              print("\n".join(x for x in s.splitlines() if "compileSdk" in x))
+              print("\n".join(x for x in s.splitlines() if "compileSdk" in x or "targetCompatibility" in x or "jvmTarget" in x))
               if not re.search(r"(?m)^\s*compileSdk(?:Version)?\s*(?:=\s*)?36\s*$", s):
                   raise SystemExit(f"ERROR: compileSdk is not 36 in {p}")
           PYCODE

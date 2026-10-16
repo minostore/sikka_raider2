@@ -15,6 +15,7 @@ import '../services/zone_service.dart';
 import '../widgets/app_map.dart';
 import '../widgets/common.dart';
 import '../widgets/app_update_banner.dart';
+import 'online_face_check_screen.dart';
 import 'request_details_screen.dart';
 import 'notifications_screen.dart';
 import 'support_tickets_screen.dart';
@@ -83,7 +84,13 @@ class _DriverHomeState extends State<DriverHome> {
           return;
         }
         if (!await FaceVerifyService.allowedOnline(myUid)) {
-          if (mounted) showSnack(context, 'لا يمكنك الاتصال قبل التحقق من تطابق صورتك الشخصية مع مستنداتك.', error: true);
+          if (mounted) showSnack(context, 'لا يمكنك الاتصال قبل اعتماد المستندات والتحقق الأولي من الوجه من الإدارة.', error: true);
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
+        final liveOk = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const OnlineFaceCheckScreen()));
+        if (liveOk != true) {
+          if (mounted) showSnack(context, 'لم يتم التحقق من الوجه؛ لن يتم فتح استقبال الرحلات. يمكنك إعادة المحاولة.', error: true);
           if (mounted) setState(() => _busy = false);
           return;
         }

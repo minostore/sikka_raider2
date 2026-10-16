@@ -12,9 +12,12 @@ s = mf.read_text(encoding="utf-8")
 perms = """    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
 """
 if "ACCESS_FINE_LOCATION" not in s:
     s = s.replace("<application", perms + "    <application", 1)
+if "android.permission.CAMERA" not in s:
+    s = s.replace("<application", '    <uses-permission android:name="android.permission.CAMERA" />\n    <application', 1)
 s = re.sub(r'android:label="[^"]*"', 'android:label="%s"' % APP_LABEL, s, count=1)
 # استعلامات الحزم لفتح الاتصال/الرسائل (Android 11+)
 if "<queries>" not in s:
@@ -87,44 +90,71 @@ for g in glob.glob("android/app/build.gradle*"):
                 raise SystemExit("ERROR: compileOptions block not found in " + str(p))
         if "coreLibraryDesugaring " not in t:
             t += "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n"
+    # Keep Java and Kotlin bytecode targets aligned. tflite_flutter's Kotlin task defaults to 17.
+    if g.endswith(".kts"):
+        if "targetCompatibility = JavaVersion.VERSION_17" not in t:
+            t, n = re.subn(r"(compileOptions\s*\{)", r"\1\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17", t, count=1)
+            if n == 0: raise SystemExit("ERROR: compileOptions block not found for JVM target in " + str(p))
+        if "jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)" not in t and 'jvmTarget = JvmTarget.JVM_17' not in t:
+            t += '\nkotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }\n'
+    else:
+        if "targetCompatibility JavaVersion.VERSION_17" not in t:
+            t, n = re.subn(r"(compileOptions\s*\{)", r"\1\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17", t, count=1)
+            if n == 0: raise SystemExit("ERROR: compileOptions block not found for JVM target in " + str(p))
+        if not re.search(r"(?m)^\s*jvmTarget\s*=\s*'17'", t):
+            t = re.sub(r"(kotlinOptions\s*\{)", r"\1\n        jvmTarget = '17'", t, count=1) if "kotlinOptions" in t else t + "\nkotlinOptions { jvmTarget = '17' }\n"
     p.write_text(t, encoding="utf-8")
 
 # ---------- فرض compileSdk 36 على كل مكتبات الـ plugins (مثل file_picker) ----------
 # السبب: التعديل أعلاه يغيّر compileSdk للتطبيق (app) فقط، بينما file_picker
 # وبقية الـ plugins لها ملفات build.gradle خاصة (compileSdk = 34) فيفشل
 # :file_picker:checkReleaseAarMetadata. لذلك نفرض القيمة على كل المشاريع الفرعية.
-KTS_BLOCK = """// SIKKA_FORCE_COMPILE_SDK
+KTS_BLOCK = """// SIKKA_FORCE_COMPILE_SDK_AND_JVM17
 subprojects {
     afterEvaluate {
         val androidExt = extensions.findByName("android")
         if (androidExt != null) {
             try {
-                androidExt.javaClass.methods
-                    .firstOrNull { it.name == "setCompileSdk" && it.parameterCount == 1 }
-                    ?.invoke(androidExt, 36)
+                androidExt.javaClass.methods.firstOrNull { it.name == "setCompileSdk" && it.parameterCount == 1 }?.invoke(androidExt, 36)
+                val compileOptions = androidExt.javaClass.methods.firstOrNull { it.name == "getCompileOptions" && it.parameterCount == 0 }?.invoke(androidExt)
+                compileOptions?.javaClass?.methods?.firstOrNull { it.name == "setSourceCompatibility" && it.parameterCount == 1 }?.invoke(compileOptions, JavaVersion.VERSION_17)
+                compileOptions?.javaClass?.methods?.firstOrNull { it.name == "setTargetCompatibility" && it.parameterCount == 1 }?.invoke(compileOptions, JavaVersion.VERSION_17)
             } catch (e: Exception) {
-                println("compileSdk override skipped for ${project.name}: $e")
+                println("Android/JVM target override skipped for ${project.name}: $e")
             }
+        }
+        tasks.matching { it.name.startsWith("compile") && it.name.endsWith("Kotlin") }.configureEach { task ->
+            try {
+                val opts = task.javaClass.methods.firstOrNull { it.name == "getKotlinOptions" && it.parameterCount == 0 }?.invoke(task)
+                opts?.javaClass?.methods?.firstOrNull { it.name == "setJvmTarget" && it.parameterCount == 1 }?.invoke(opts, "17")
+            } catch (e: Exception) { println("Kotlin target override skipped for ${project.name}: $e") }
         }
     }
 }
 
 """
-GROOVY_BLOCK = """// SIKKA_FORCE_COMPILE_SDK
+GROOVY_BLOCK = """// SIKKA_FORCE_COMPILE_SDK_AND_JVM17
 subprojects {
     afterEvaluate { p ->
         def androidExt = p.extensions.findByName("android")
         if (androidExt != null) {
             try {
                 androidExt.compileSdk = 36
+                androidExt.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+                androidExt.compileOptions.targetCompatibility = JavaVersion.VERSION_17
             } catch (Throwable e) {
-                println("compileSdk override skipped for ${p.name}: ${e}")
+                println("Android/JVM target override skipped for ${p.name}: ${e}")
             }
+        }
+        p.tasks.matching { it.name.startsWith('compile') && it.name.endsWith('Kotlin') }.configureEach { task ->
+            try { task.kotlinOptions.jvmTarget = '17' }
+            catch (Throwable e) { println("Kotlin target override skipped for ${p.name}: ${e}") }
         }
     }
 }
 
 """
+
 _root = None
 for name, block in (("android/build.gradle.kts", KTS_BLOCK), ("android/build.gradle", GROOVY_BLOCK)):
     cand = pathlib.Path(name)
@@ -135,10 +165,10 @@ if _root is None:
     raise SystemExit("ERROR: root android/build.gradle(.kts) not found")
 _p, _block = _root
 _t = _p.read_text(encoding="utf-8")
-if "SIKKA_FORCE_COMPILE_SDK" not in _t:
+if "SIKKA_FORCE_COMPILE_SDK_AND_JVM17" not in _t:
     # لازم يتسجّل قبل أي subprojects { evaluationDependsOn(":app") } وإلا يفشل afterEvaluate
     _p.write_text(_block + _t, encoding="utf-8")
-print("forced compileSdk 36 for all subprojects in", _p)
+print("forced compileSdk 36 and JVM 17 targets for all subprojects in", _p)
 
 
 # ---------- Firebase Cloud Messaging (إشعارات ستارة الهاتف والتطبيق مغلق) ----------
@@ -182,7 +212,7 @@ if ROLE == "driver":
     add += """	<key>NSPhotoLibraryUsageDescription</key>
 	<string>لرفع مستندات التحقق (الهوية، الرخصة، الاستمارة).</string>
 	<key>NSCameraUsageDescription</key>
-	<string>لالتقاط صور مستندات التحقق.</string>
+	<string>لالتقاط صور مستندات التحقق والتحقق الحي من الوجه عند الاتصال.</string>
 """
 add += """	<key>LSApplicationQueriesSchemes</key>
 	<array><string>tel</string><string>sms</string><string>https</string></array>
