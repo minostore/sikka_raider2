@@ -1,12 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../services/auth_service.dart';
 import '../services/driver_service.dart';
+import '../services/r2_upload_service.dart';
 import 'ticket_chat_screen.dart';
 import '../widgets/common.dart';
 import 'ratings_screen.dart';
@@ -80,8 +81,20 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     return n.isNotEmpty ? n : _fallbackName;
   }
 
-  String get _photo =>
-      _localPhoto ?? (widget.m['photoUrl'] ?? widget.m['photoURL'] ?? widget.m['avatarUrl'] ?? '').toString();
+  String get _photo {
+    if (_localPhoto != null) return _localPhoto!;
+    final profile = (widget.m['photoUrl'] ?? widget.m['photoURL'] ?? widget.m['avatarUrl'] ?? '').toString().trim();
+    if (profile.startsWith('https://')) return profile;
+    final docs = widget.m['docs'];
+    if (docs is Map) {
+      final selfie = docs['photo'];
+      if (selfie is Map) {
+        final url = (selfie['url'] ?? selfie['downloadUrl'] ?? '').toString().trim();
+        if (url.startsWith('https://')) return url;
+      }
+    }
+    return '';
+  }
 
   /// إذا كان الاسم غير موجود في ملف السائق نقرأه من حساب المستخدم ونصلحه
   Future<void> _loadFallbackName() async {
@@ -127,12 +140,10 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
       );
       if (x == null) return;
       if (mounted) setState(() => _uploading = true);
-      final bytes = await x.readAsBytes();
-      final ref = FirebaseStorage.instance.ref('driverAvatars/$myUid/avatar.jpg');
-      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-      final url = '${await ref.getDownloadURL()}&t=${DateTime.now().millisecondsSinceEpoch}';
-      await db.child('drivers/$myUid/photoUrl').set(url);
-      db.child('users/$myUid/photoUrl').set(url).catchError((_) {});
+      final uploaded = await R2UploadService.uploadProfileImage(file: File(x.path), role: 'driver');
+      final rawUrl = uploaded['url']!;
+      final url = '$rawUrl${rawUrl.contains('?') ? '&' : '?'}t=${DateTime.now().millisecondsSinceEpoch}';
+      await db.child('drivers/$myUid').update({'photoUrl': url, if (uploaded['path'] != null) 'photoPath': uploaded['path']});
       if (mounted) {
         setState(() => _localPhoto = url);
         showSnack(context, 'تم تحديث صورتك الشخصية');
@@ -150,8 +161,8 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     final hasPhoto = photo.startsWith('http');
     return Row(children: [
       GestureDetector(
-        // تعديل الملف الشخصي (بما فيه الصورة) يتم عبر خدمة العملاء فقط
-        onTap: () => contactSupportForEdit(context),
+        // تغيير الصورة الشخصية مباشرة عبر Cloudflare R2
+        onTap: _changePhoto,
         child: Stack(children: [
           CircleAvatar(
             radius: 36,

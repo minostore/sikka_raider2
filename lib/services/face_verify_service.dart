@@ -150,6 +150,39 @@ class FaceVerifyService {
     return FaceVerifyResult((j['status'] ?? 'review').toString(), j['reason']?.toString());
   }
 
+
+  /// مقارنة تلقائية على الجهاز: الصورة الحية الجديدة مقابل السيلفي والمستندات المرفوعة (رابطها في drivers/{uid}/docs).
+  static Future<FaceVerifyResult> verifyOnlineLocal(File live) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final cfg = await _cfg();
+    final matchT = (cfg['matchThreshold'] as num).toDouble();
+    final liveA = await LocalFaceService.analyze(live.path, isSelfie: true);
+    if (!liveA.ok) return FaceVerifyResult('failed', liveA.reason);
+
+    // Compare only against the saved selfie, never the ID card or license.
+    final entry = (await FirebaseDatabase.instance.ref('drivers/$uid/docs/photo').get()).value;
+    final refData = entry is Map ? Map<String, dynamic>.from(entry) : <String, dynamic>{};
+    final url = (refData['url'] ?? '').toString();
+    if (!url.startsWith('https://')) return const FaceVerifyResult('failed', 'approved_selfie_missing');
+    File? referenceFile;
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+      if (response.statusCode != 200) return const FaceVerifyResult('failed', 'approved_selfie_unreadable');
+      referenceFile = File('${Directory.systemTemp.path}/approved_selfie_$uid.jpg');
+      await referenceFile.writeAsBytes(response.bodyBytes);
+      final reference = await LocalFaceService.analyze(referenceFile.path, isSelfie: true);
+      if (!reference.ok) return FaceVerifyResult('failed', reference.reason == 'model_missing' ? 'model_missing' : 'approved_selfie_unreadable');
+      final score = LocalFaceService.cosine(liveA.embedding!, reference.embedding!);
+      return score >= matchT
+          ? const FaceVerifyResult('verified', null)
+          : FaceVerifyResult('failed', score >= (cfg['reviewThreshold'] as num).toDouble() ? 'borderline' : 'mismatch');
+    } catch (_) {
+      return const FaceVerifyResult('failed', 'approved_selfie_unreadable');
+    } finally {
+      try { await referenceFile?.delete(); } catch (_) {}
+    }
+  }
+
   /// هل يُسمح للسائق بالاتصال؟ فقط عند verified (الخادم) أو manual_approved (الإدارة)، أو إيقاف الإلزام.
   static Future<bool> allowedOnline(String uid) async {
     final db = FirebaseDatabase.instance.ref();

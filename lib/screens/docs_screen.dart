@@ -19,11 +19,11 @@ const _defaultUploadApi = 'https://sikka.mohamedmini2006.workers.dev'; // خدم
 /// الأوراق المطلوبة الافتراضية. يمكن للإدارة تعديلها (الاسم/الصورة/الإضافة/الحذف) من لوحة التحكم
 /// ← الأوراق المطلوبة، وتظهر مباشرة في التطبيق عبر settings/requiredDocs.
 final Map<String, String> docLabels = {
-  'license': 'رخصة القيادة',
-  'registration': 'استمارة المركبة',
-  'nationalId': 'الهوية الوطنية',
-  'insurance': 'التأمين',
-  'photo': 'صورة سيلفي (وجهك بوضوح)',
+  'nationalIdFront': 'صورة البطاقة الشخصية - الوجه الأمامي',
+  'nationalIdBack': 'صورة البطاقة الشخصية - الوجه الخلفي',
+  'licenseFront': 'صورة رخصة القيادة - الوجه الأمامي',
+  'licenseBack': 'صورة رخصة القيادة - الوجه الخلفي',
+  'photo': 'صورة سيلفي واضحة للوجه',
 };
 const docIcons = {
   'license': Icons.badge_outlined,
@@ -264,7 +264,7 @@ class _DocsScreenState extends State<DocsScreen> {
       await FirebaseDatabase.instance.ref('drivers/$_uid').update({'status': 'pending', 'submittedAt': ServerValue.timestamp});
       if (!mounted) return;
       // التحقق من تطابق السيلفي مع المستندات (يتم على الخادم بخدمة تعرف على الوجه)
-      final r = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => FaceVerifyScreen(selfiePath: _localPaths['photo'], idPaths: {for (final k in const ['nationalId', 'license']) if (_localPaths[k] != null) k: _localPaths[k]!})));
+      final r = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => FaceVerifyScreen(selfiePath: _localPaths['photo'], idPaths: {for (final k in const ['nationalIdFront', 'nationalIdBack', 'licenseFront', 'licenseBack', 'nationalId', 'license']) if (_localPaths[k] != null) k: _localPaths[k]!})));
       if (!mounted) return;
       if (r == 'failed') {
         showSnack(context, 'أعد التقاط السيلفي ثم أرسل المستندات مرة أخرى', error: true);

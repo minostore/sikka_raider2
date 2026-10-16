@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show DeviceOrientation;
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../services/face_verify_service.dart';
 
@@ -27,7 +27,13 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
   bool _blinkDone = false, _turned = false, _returnedCenter = false;
   double? _initialYaw;
   String _message = 'ضع وجهك داخل الإطار وانظر إلى الكاميرا';
-  int _frames = 0;
+  int _frames = 0, _errors = 0;
+  static const _orientations = {
+    DeviceOrientation.portraitUp: 0,
+    DeviceOrientation.landscapeLeft: 90,
+    DeviceOrientation.portraitDown: 180,
+    DeviceOrientation.landscapeRight: 270,
+  };
 
   @override
   void initState() { super.initState(); _initCamera(); }
@@ -37,7 +43,8 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
       final cams = await availableCameras();
       final front = cams.where((c) => c.lensDirection == CameraLensDirection.front).toList();
       if (front.isEmpty) throw Exception('الكاميرا الأمامية غير متاحة');
-      final c = CameraController(front.first, ResolutionPreset.medium, enableAudio: false, imageFormatGroup: ImageFormatGroup.yuv420);
+      final c = CameraController(front.first, ResolutionPreset.high, enableAudio: false,
+        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888);
       await c.initialize();
       if (!mounted) { await c.dispose(); return; }
       _camera = c;
@@ -56,18 +63,11 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
       // Process every third frame to keep mid-range Android phones responsive.
       _frames++;
       if (_frames % 3 != 0) return;
-      final rotation = InputImageRotationValue.fromRawValue(c.description.sensorOrientation);
-      final format = InputImageFormatValue.fromRawValue(image.format.raw);
-      if (rotation == null || format == null) return;
-      final buffer = WriteBuffer();
-      for (final plane in image.planes) { buffer.putUint8List(plane.bytes); }
-      final bytes = buffer.done().buffer.asUint8List();
-      final input = InputImage.fromBytes(bytes: bytes, metadata: InputImageMetadata(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-        rotation: rotation,
-        format: format,
-        bytesPerRow: image.planes.first.bytesPerRow,
-      ));
+      final input = _toInputImage(c, image);
+      if (input == null) {
+        if (++_errors >= 8 && mounted) setState(() => _message = 'تعذر قراءة صورة الكاميرا على هذا الجهاز.');
+        return;
+      }
       final faces = await _detector.processImage(input);
       if (!mounted || _busy) return;
       if (faces.length != 1) {
@@ -94,9 +94,44 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
         else if (!_returnedCenter) _message = 'ارجع برأسك للأمام';
         else _message = 'ثبّت وجهك وانظر إلى الكاميرا';
       });
-    } catch (_) {
-      // transient frame conversion errors are ignored; subsequent frames retry.
+      _errors = 0;
+    } catch (e) {
+      if (++_errors >= 8 && mounted) setState(() => _message = 'تعذر تحليل الوجه: $e');
     } finally { _processing = false; }
+  }
+
+
+  /// يبني InputImage بالصيغة والدوران الذي يتوقعه ML Kit (NV21 على أندرويد، BGRA على iOS).
+  InputImage? _toInputImage(CameraController c, CameraImage image) {
+    final sensor = c.description.sensorOrientation;
+    InputImageRotation? rotation;
+    if (Platform.isIOS) {
+      rotation = InputImageRotationValue.fromRawValue(sensor);
+    } else {
+      var comp = _orientations[c.value.deviceOrientation] ?? 0;
+      comp = c.description.lensDirection == CameraLensDirection.front ? (sensor + comp) % 360 : (sensor - comp + 360) % 360;
+      rotation = InputImageRotationValue.fromRawValue(comp);
+    }
+    if (rotation == null) return null;
+    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    if (format == null || (Platform.isAndroid && format != InputImageFormat.nv21) || (Platform.isIOS && format != InputImageFormat.bgra8888)) return null;
+    if (image.planes.length != 1) return null;
+    final plane = image.planes.first;
+    return InputImage.fromBytes(
+      bytes: plane.bytes,
+      metadata: InputImageMetadata(size: Size(image.width.toDouble(), image.height.toDouble()), rotation: rotation, format: format, bytesPerRow: plane.bytesPerRow),
+    );
+  }
+
+  Future<FaceVerifyResult> _compare(File shot) async {
+    // The trusted server performs selfie-to-selfie matching and issues the
+    // short-lived authorization required by Firebase rules. Face detection alone
+    // must never grant online access.
+    try {
+      return await FaceVerifyService.verifyOnlineSelfie(shot);
+    } catch (_) {
+      return const FaceVerifyResult('failed', 'service_unavailable');
+    }
   }
 
   Future<void> _captureAndVerify() async {
@@ -108,8 +143,8 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
       if (c.value.isStreamingImages) await c.stopImageStream();
       final shot = await c.takePicture();
       if (!mounted) return;
-      setState(() => _message = 'جارٍ مقارنة الوجه بالصورة المعتمدة…');
-      final result = await FaceVerifyService.verifyOnlineSelfie(File(shot.path));
+      setState(() => _message = 'جارٍ مقارنة وجهك بالسيلفي المعتمدة…');
+      final result = await _compare(File(shot.path));
       if (!mounted) return;
       if (result.status == 'verified') {
         Navigator.pop(context, true);
@@ -121,7 +156,14 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
             'no_face' => 'لم يظهر وجه واضح. أعد المحاولة.',
             'multiple_faces' => 'يجب أن يظهر وجه واحد فقط داخل الإطار.',
             'low_quality' => 'الإضاءة أو وضوح الصورة غير كافٍ. أعد المحاولة.',
-            'approved_selfie_missing' => 'لا توجد صورة سيلفي معتمدة. تواصل مع الدعم.',
+            'face_too_small' => 'قرّب وجهك أكثر من الكاميرا.',
+            'face_cut' => 'ضع وجهك بالكامل داخل الإطار.',
+            'bad_angle' => 'انظر مباشرة إلى الكاميرا دون إمالة.',
+            'low_similarity' || 'borderline' => 'الوجه غير مطابق للصورة المعتمدة. أعد المحاولة بإضاءة جيدة.',
+            'model_missing' => 'نموذج التحقق غير مثبت في التطبيق. تواصل مع الدعم.',
+            'service_unavailable' => 'خدمة التحقق غير متاحة الآن. أعد المحاولة بعد قليل.',
+            'no_reference' => 'لا توجد صورة معتمدة للمقارنة. تواصل مع الدعم.',
+            'approved_selfie_missing' => 'لا توجد صورة سيلفي معتمدة. ارفع السيلفي أولًا أو تواصل مع الدعم.',
             _ => 'تعذر تأكيد الهوية (${result.reason ?? 'سبب غير معروف'}). أعد المحاولة.'
           };
           _blinkClosed = false; _blinkDone = false; _turned = false; _returnedCenter = false; _initialYaw = null;
@@ -150,7 +192,7 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
       appBar: AppBar(title: const Text('التحقق من الوجه'), backgroundColor: const Color(0xFF071426), foregroundColor: Colors.white),
       body: SafeArea(child: Column(children: [
         const SizedBox(height: 18),
-        const Padding(padding: EdgeInsets.symmetric(horizontal: 24), child: Text('لأمان حسابك، التقط التطبيق صورة جديدة بعد التأكد من حركة الوجه، ثم يقارنها بصورة المستندات المعتمدة.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 15))),
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 24), child: Text('لأمان حسابك، التقط التطبيق صورة جديدة بعد التأكد من حركة الوجه، ثم يقارنها بصورة السيلفي التي رفعتها سابقًا، وليس بصورة البطاقة.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 15))),
         const SizedBox(height: 18),
         Expanded(child: Center(child: c != null && c.value.isInitialized
           ? ClipRRect(borderRadius: BorderRadius.circular(24), child: AspectRatio(aspectRatio: 1 / c.value.aspectRatio, child: CameraPreview(c)))

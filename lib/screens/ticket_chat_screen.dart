@@ -180,7 +180,7 @@ class _TicketChatScreenState extends State<TicketChatScreen> {
     final candidateUrl = a['downloadUrl']?.toString();
     final directUrl =
         candidateUrl != null &&
-            candidateUrl.startsWith('https://firebasestorage.googleapis.com/')
+            candidateUrl.startsWith('https://')
         ? candidateUrl
         : null;
     if (mime.startsWith('image/')) {
