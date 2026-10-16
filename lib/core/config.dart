@@ -16,4 +16,7 @@ class AppConfig {
   static const tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const defaultCenter = LatLng(30.0444, 31.2357);
   static const nearbyRadiusKm = 8.0;
+  // عنوان لوحة التحكم (Vercel) لخدمة التحقق من الوجه، مثال: https://sikka-admin.vercel.app
+  // يمكن تجاوزه من Firebase: settings/adminApiUrl
+  static const adminApiBase = '';
 }

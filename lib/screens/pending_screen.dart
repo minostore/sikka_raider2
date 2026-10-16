@@ -1,7 +1,9 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../services/auth_service.dart';
+import '../services/driver_service.dart';
 import '../widgets/common.dart';
 import 'docs_screen.dart';
 import 'splash_gate.dart';
@@ -47,7 +49,14 @@ class PendingScreen extends StatelessWidget {
             future: loadRequiredDocs(),
             builder: (context, snap) {
               final reqs = snap.data ?? [for (final e in docLabels.entries) DocReq(e.key, e.value)];
-              return InfoCard(child: Column(children: [for (final d in reqs) row(d.title, asMap(docs[d.key])['status']?.toString() ?? 'pending'), row('الموافقة النهائية', 'pending')]));
+              return InfoCard(child: Column(children: [for (final d in reqs) row(d.title, asMap(docs[d.key])['status']?.toString() ?? 'pending'), StreamBuilder<DatabaseEvent>(
+                stream: db.child('driverVerification/$myUid/status').onValue,
+                builder: (c, s) {
+                  final v = s.data?.snapshot.value?.toString() ?? 'pending';
+                  final st = (v == 'verified' || v == 'manual_approved') ? 'approved' : (v == 'failed' || v == 'rejected') ? 'rejected' : 'pending';
+                  return row('التحقق من تطابق الوجه', st);
+                },
+              ), row('الموافقة النهائية', 'pending')]));
             },
           ),
           const SizedBox(height: 18),

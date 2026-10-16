@@ -9,6 +9,7 @@ import '../core/utils.dart';
 import '../models/place.dart';
 import '../services/driver_overlay.dart';
 import '../services/driver_service.dart';
+import '../services/face_verify_service.dart';
 import '../services/location_service.dart';
 import '../services/zone_service.dart';
 import '../widgets/app_map.dart';
@@ -78,6 +79,11 @@ class _DriverHomeState extends State<DriverHome> {
         final vehicleReview = (driver['vehicleReviewStatus'] ?? 'approved').toString();
         if (!['approved', 'active'].contains(status) || vehicleReview == 'pending') {
           if (mounted) showSnack(context, 'لا يمكنك استقبال الرحلات قبل مراجعة واعتماد بياناتك والمركبة من الإدارة.', error: true);
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
+        if (!await FaceVerifyService.allowedOnline(myUid)) {
+          if (mounted) showSnack(context, 'لا يمكنك الاتصال قبل التحقق من تطابق صورتك الشخصية مع مستنداتك.', error: true);
           if (mounted) setState(() => _busy = false);
           return;
         }

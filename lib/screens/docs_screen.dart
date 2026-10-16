@@ -11,6 +11,7 @@ import '../core/utils.dart';
 import '../services/auth_service.dart';
 import '../widgets/common.dart';
 import 'auth_driver.dart';
+import 'face_verify_screen.dart';
 import 'splash_gate.dart';
 
 const _defaultUploadApi = 'https://sikka.mohamedmini2006.workers.dev'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
@@ -22,7 +23,7 @@ final Map<String, String> docLabels = {
   'registration': 'استمارة المركبة',
   'nationalId': 'الهوية الوطنية',
   'insurance': 'التأمين',
-  'photo': 'صورة شخصية',
+  'photo': 'صورة سيلفي (وجهك بوضوح)',
 };
 const docIcons = {
   'license': Icons.badge_outlined,
@@ -149,6 +150,7 @@ class _DocsScreenState extends State<DocsScreen> {
   Map<String, String> _vehicleImages = {};
   late final Map<String, dynamic> _docs = asMap(widget.data['docs']);
   final Set<String> _uploading = {};
+  final Map<String, String> _localPaths = {}; // نسخة محلية من الصور التي رُفعت في هذه الجلسة (للمقارنة على الجهاز)
   bool _busy = false;
   late int _step = (_veh['plate'] ?? '').toString().isNotEmpty ? 3 : 2;
 
@@ -174,7 +176,14 @@ class _DocsScreenState extends State<DocsScreen> {
   }
 
   Future<void> _pick(String key) async {
-    final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 1600);
+    // السيلفي (photo) يُلتقط من الكاميرا الأمامية مباشرة ولا يُقبل من المعرض، لضمان أنه صورة حية.
+    final isSelfie = key == 'photo';
+    final x = await ImagePicker().pickImage(
+      source: isSelfie ? ImageSource.camera : ImageSource.gallery,
+      preferredCameraDevice: CameraDevice.front,
+      imageQuality: isSelfie ? 85 : 70,
+      maxWidth: 1600,
+    );
     if (x == null) return;
     setState(() => _uploading.add(key));
     try {
@@ -204,6 +213,7 @@ class _DocsScreenState extends State<DocsScreen> {
       final doc = <String, dynamic>{'path': path, 'status': 'pending', 'uploadedAt': ServerValue.timestamp};
       if (returnedUrl != null && returnedUrl.startsWith('https://')) doc['url'] = returnedUrl;
       await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set(doc);
+      _localPaths[key] = x.path;
       setState(() => _docs[key] = {'path': path, if (returnedUrl != null) 'url': returnedUrl, 'status': 'pending'});
     } on SocketException {
       if (mounted) showSnack(context, 'تعذر الوصول إلى خدمة الرفع. تحقق من عنوان Worker واتصال الخادم.', error: true);
@@ -252,7 +262,15 @@ class _DocsScreenState extends State<DocsScreen> {
     setState(() => _busy = true);
     try {
       await FirebaseDatabase.instance.ref('drivers/$_uid').update({'status': 'pending', 'submittedAt': ServerValue.timestamp});
-      if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+      if (!mounted) return;
+      // التحقق من تطابق السيلفي مع المستندات (يتم على الخادم بخدمة تعرف على الوجه)
+      final r = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => FaceVerifyScreen(selfiePath: _localPaths['photo'], idPaths: {for (final k in const ['nationalId', 'license']) if (_localPaths[k] != null) k: _localPaths[k]!})));
+      if (!mounted) return;
+      if (r == 'failed') {
+        showSnack(context, 'أعد التقاط السيلفي ثم أرسل المستندات مرة أخرى', error: true);
+      } else if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (mounted) showSnack(context, AuthService.message(e), error: true);
     }
