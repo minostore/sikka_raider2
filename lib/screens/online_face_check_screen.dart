@@ -164,6 +164,13 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
             'service_unavailable' => 'خدمة التحقق غير متاحة الآن. أعد المحاولة بعد قليل.',
             'no_reference' => 'لا توجد صورة معتمدة للمقارنة. تواصل مع الدعم.',
             'approved_selfie_missing' => 'لا توجد صورة سيلفي معتمدة. ارفع السيلفي أولًا أو تواصل مع الدعم.',
+            'approved_selfie_unreadable' => 'تعذر قراءة صورتك المعتمدة الآن. أعد المحاولة بعد لحظات، وإن تكرر تواصل مع الدعم.',
+            'not_configured' => 'خدمة التحقق غير مفعّلة بعد. تواصل مع الدعم.',
+            'provider_auth' || 'provider_error' => 'خدمة التحقق تعطلت مؤقتًا. أعد المحاولة بعد قليل.',
+            'too_many_attempts' => 'كثرت المحاولات. انتظر قليلًا ثم أعد المحاولة أو تواصل مع الدعم.',
+            'bad_image' => 'لم تُلتقط الصورة جيدًا. أعد المحاولة.',
+            'not_verified_initial' => 'لم يكتمل اعتماد التحقق الأولي من الإدارة بعد.',
+            'not_approved' => 'حسابك غير معتمد بعد.',
             _ => 'تعذر تأكيد الهوية (${result.reason ?? 'سبب غير معروف'}). أعد المحاولة.'
           };
           _blinkClosed = false; _blinkDone = false; _turned = false; _returnedCenter = false; _initialYaw = null;

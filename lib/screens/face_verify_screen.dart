@@ -129,7 +129,7 @@ class _FaceVerifyScreenState extends State<FaceVerifyScreen> {
       if (r.passed) {
         icon = Icons.task_alt;
         color = AppColors.green;
-        title = 'تم التحقق المبدئي من تطابق الوجه';
+        title = r.status == 'verified' ? 'تم التحقق من تطابق الوجه بنجاح' : 'تم التحقق المبدئي من تطابق الوجه';
         body = 'تم إرسال النتيجة للإدارة. لن يتفعل حسابك قبل مراجعتها واعتمادها.';
         action = 'متابعة';
         result = 'passed';

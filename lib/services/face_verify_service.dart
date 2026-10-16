@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show compute;
+import 'package:image/image.dart' as img;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +16,16 @@ class FaceVerifyResult {
   final String? reason;
   const FaceVerifyResult(this.status, this.reason);
   bool get passed => status == 'preliminary_match' || status == 'verified' || status == 'manual_approved';
+}
+
+
+/// يصغّر الصورة الحية (أقصى عرض 960px، JPEG 85) لتناسب حدود خدمات التعرف على الوجه وتسرّع الإرسال.
+Uint8List _prepareLive(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return bytes;
+  var im = img.bakeOrientation(decoded);
+  if (im.width > 960) im = img.copyResize(im, width: 960);
+  return Uint8List.fromList(img.encodeJpg(im, quality: 85));
 }
 
 class FaceVerifyService {
@@ -98,13 +111,10 @@ class FaceVerifyService {
       'createdAt': ServerValue.timestamp,
     });
 
-    // اختياري: لو فعّلت الإدارة المقارنة على الخادم (provider = rekognition) نشغّلها أيضًا.
-    if (cfg['provider'] == 'rekognition') {
-      try {
-        final r = await runServer();
-        if (r.status == 'failed') return r;
-      } catch (_) {}
-    }
+    // المقارنة الموثوقة على الخادم (قراءة الصور من R2 مباشرة). إن تعذر الوصول نعتمد النتيجة المبدئية فقط.
+    try {
+      return await runServer();
+    } catch (_) {}
     return FaceVerifyResult(status, reason);
   }
 
@@ -136,51 +146,19 @@ class FaceVerifyService {
     final base = await _base();
     if (base.isEmpty) throw Exception('عنوان خادم التحقق غير مضبوط (settings/adminApiUrl).');
     final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
-    final bytes = await selfie.readAsBytes();
+    final bytes = await compute(_prepareLive, await selfie.readAsBytes());
     final encoded = base64Encode(bytes);
     final res = await http.post(
       Uri.parse('$base/api/driver/online-face-verify'),
       headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
       body: jsonEncode({'selfieBase64': encoded}),
-    ).timeout(const Duration(seconds: 45));
+    )
+.timeout(const Duration(seconds: 60));
     final j = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception((j is Map ? j['error'] : null)?.toString() ?? 'تعذر التحقق (HTTP ${res.statusCode})');
     }
     return FaceVerifyResult((j['status'] ?? 'review').toString(), j['reason']?.toString());
-  }
-
-
-  /// مقارنة تلقائية على الجهاز: الصورة الحية الجديدة مقابل السيلفي والمستندات المرفوعة (رابطها في drivers/{uid}/docs).
-  static Future<FaceVerifyResult> verifyOnlineLocal(File live) async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final cfg = await _cfg();
-    final matchT = (cfg['matchThreshold'] as num).toDouble();
-    final liveA = await LocalFaceService.analyze(live.path, isSelfie: true);
-    if (!liveA.ok) return FaceVerifyResult('failed', liveA.reason);
-
-    // Compare only against the saved selfie, never the ID card or license.
-    final entry = (await FirebaseDatabase.instance.ref('drivers/$uid/docs/photo').get()).value;
-    final refData = entry is Map ? Map<String, dynamic>.from(entry) : <String, dynamic>{};
-    final url = (refData['url'] ?? '').toString();
-    if (!url.startsWith('https://')) return const FaceVerifyResult('failed', 'approved_selfie_missing');
-    File? referenceFile;
-    try {
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
-      if (response.statusCode != 200) return const FaceVerifyResult('failed', 'approved_selfie_unreadable');
-      referenceFile = File('${Directory.systemTemp.path}/approved_selfie_$uid.jpg');
-      await referenceFile.writeAsBytes(response.bodyBytes);
-      final reference = await LocalFaceService.analyze(referenceFile.path, isSelfie: true);
-      if (!reference.ok) return FaceVerifyResult('failed', reference.reason == 'model_missing' ? 'model_missing' : 'approved_selfie_unreadable');
-      final score = LocalFaceService.cosine(liveA.embedding!, reference.embedding!);
-      return score >= matchT
-          ? const FaceVerifyResult('verified', null)
-          : FaceVerifyResult('failed', score >= (cfg['reviewThreshold'] as num).toDouble() ? 'borderline' : 'mismatch');
-    } catch (_) {
-      return const FaceVerifyResult('failed', 'approved_selfie_unreadable');
-    } finally {
-      try { await referenceFile?.delete(); } catch (_) {}
-    }
   }
 
   /// هل يُسمح للسائق بالاتصال؟ فقط عند verified (الخادم) أو manual_approved (الإدارة)، أو إيقاف الإلزام.
