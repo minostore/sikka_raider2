@@ -80,8 +80,20 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     return n.isNotEmpty ? n : _fallbackName;
   }
 
-  String get _photo =>
-      _localPhoto ?? (widget.m['photoUrl'] ?? widget.m['photoURL'] ?? widget.m['avatarUrl'] ?? '').toString();
+  String get _photo {
+    if (_localPhoto != null) return _localPhoto!;
+    final profile = (widget.m['photoUrl'] ?? widget.m['photoURL'] ?? widget.m['avatarUrl'] ?? '').toString().trim();
+    if (profile.startsWith('https://')) return profile;
+    final docs = widget.m['docs'];
+    if (docs is Map) {
+      final selfie = docs['photo'];
+      if (selfie is Map) {
+        final url = (selfie['url'] ?? selfie['downloadUrl'] ?? '').toString().trim();
+        if (url.startsWith('https://')) return url;
+      }
+    }
+    return '';
+  }
 
   /// إذا كان الاسم غير موجود في ملف السائق نقرأه من حساب المستخدم ونصلحه
   Future<void> _loadFallbackName() async {
@@ -130,7 +142,8 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
       final bytes = await x.readAsBytes();
       final ref = FirebaseStorage.instance.ref('driverAvatars/$myUid/avatar.jpg');
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-      final url = '${await ref.getDownloadURL()}&t=${DateTime.now().millisecondsSinceEpoch}';
+      final rawUrl = await ref.getDownloadURL();
+      final url = '${rawUrl}${rawUrl.contains('?') ? '&' : '?'}t=${DateTime.now().millisecondsSinceEpoch}';
       await db.child('drivers/$myUid/photoUrl').set(url);
       db.child('users/$myUid/photoUrl').set(url).catchError((_) {});
       if (mounted) {
