@@ -13,6 +13,7 @@ import '../widgets/common.dart';
 import 'auth_driver.dart';
 import 'face_verify_screen.dart';
 import '../services/upload_http.dart';
+import '../services/doc_upload_service.dart';
 import 'splash_gate.dart';
 
 const _defaultUploadApi = 'https://sikka.mohamedmini2006.workers.dev'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
@@ -188,28 +189,33 @@ class _DocsScreenState extends State<DocsScreen> {
     if (x == null) return;
     setState(() => _uploading.add(key));
     try {
-      // الرفع إلى Cloudflare R2 عبر خدمة sikka-uploads (عنوانها يُضبط من لوحة التحكم > الإعدادات)
-      final cfg = (await FirebaseDatabase.instance.ref('settings/uploadApi').get()).value?.toString();
-      final base = (cfg != null && cfg.trim().isNotEmpty) ? cfg.trim() : _defaultUploadApi;
-      final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
-      if (token == null || token.isEmpty) throw Exception('تعذر الحصول على رمز تسجيل الدخول. سجل الدخول مرة أخرى.');
       final bytes = await x.readAsBytes();
+      if (bytes.length > 8 * 1024 * 1024) throw Exception('حجم الصورة أكبر من 8 ميجابايت. اختر صورة أصغر.');
       final type = (x.mimeType != null && x.mimeType!.startsWith('image/')) ? x.mimeType! : 'image/jpeg';
-      final endpoint = Uri.parse('${base.trim().replaceAll(RegExp(r'/+$'), '')}/upload/$key');
-      final res = await putFollowingRedirects(endpoint,
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': type}, body: bytes);
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        final detail = res.body.trim().replaceAll(RegExp(r'\s+'), ' ');
-        throw HttpException('HTTP ${res.statusCode}${detail.isEmpty ? '' : ': ${detail.substring(0, detail.length > 180 ? 180 : detail.length)}'}');
-      }
-      String? returnedUrl;
-      try {
-        final payload = jsonDecode(res.body);
-        if (payload is Map) {
-          returnedUrl = (payload['url'] ?? payload['publicUrl'] ?? payload['downloadUrl'])?.toString();
+      String? returnedUrl, workerKey;
+      // 1) رفع مباشر إلى R2 برابط موقّع من خادم لوحة التحكم (لا يمر على Worker ولا Cloudflare Access)
+      final direct = await DocUploadService.putDirect(key: key, bytes: bytes, contentType: type);
+      if (direct == null) {
+        // 2) احتياطي: خدمة Worker (عنوانها settings/uploadApi)
+        final cfg = (await FirebaseDatabase.instance.ref('settings/uploadApi').get()).value?.toString();
+        final base = (cfg != null && cfg.trim().isNotEmpty) ? cfg.trim() : _defaultUploadApi;
+        final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
+        if (token == null || token.isEmpty) throw Exception('تعذر الحصول على رمز تسجيل الدخول. سجل الدخول مرة أخرى.');
+        final endpoint = Uri.parse('${base.trim().replaceAll(RegExp(r'/+$'), '')}/upload/$key');
+        final res = await putFollowingRedirects(endpoint, headers: {'Authorization': 'Bearer $token', 'Content-Type': type}, body: bytes);
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          final detail = res.body.trim().replaceAll(RegExp(r'\s+'), ' ');
+          throw HttpException('HTTP ${res.statusCode}${detail.isEmpty ? '' : ': ${detail.substring(0, detail.length > 180 ? 180 : detail.length)}'}');
         }
-      } catch (_) {}
-      final path = 'driverDocs/$_uid/$key';
+        try {
+          final payload = jsonDecode(res.body);
+          if (payload is Map) {
+            returnedUrl = (payload['url'] ?? payload['publicUrl'] ?? payload['downloadUrl'])?.toString();
+            workerKey = (payload['key'] ?? payload['path'])?.toString(); // مثال: account-files/{uid}/{key}
+          }
+        } catch (_) {}
+      }
+      final path = direct ?? ((workerKey != null && workerKey!.isNotEmpty) ? workerKey! : 'driverDocs/$_uid/$key');
       final doc = <String, dynamic>{'path': path, 'status': 'pending', 'uploadedAt': ServerValue.timestamp};
       if (returnedUrl != null && returnedUrl.startsWith('https://')) doc['url'] = returnedUrl;
       await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set(doc);

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
-import '../core/config.dart';
+import 'admin_api.dart';
 import 'local_face_service.dart';
 
 /// نتيجة التحقق المعروضة للسائق.
@@ -102,13 +102,7 @@ class FaceVerifyService {
     return FaceVerifyResult(status, reason);
   }
 
-  static Future<String> _base() async {
-    try {
-      final v = (await FirebaseDatabase.instance.ref('settings/adminApiUrl').get()).value?.toString().trim() ?? '';
-      if (v.startsWith('https://')) return v.replaceAll(RegExp(r'/+$'), '');
-    } catch (_) {}
-    return AppConfig.adminApiBase.replaceAll(RegExp(r'/+$'), '');
-  }
+  static Future<String> _base() => AdminApi.base();
 
   /// التحقق عند «متصل» بمكتبات فلاتر على الجهاز: الصورة الحية ↔ السيلفي المعتمدة (ليست البطاقة).
   /// الخادم يسلّم الصورة المعتمدة فقط، ثم يُصدر تصريح الاتصال بعد نجاح المقارنة.
