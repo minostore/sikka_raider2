@@ -37,7 +37,7 @@ dependencies:
   android_intent_plus: ^6.0.0
   # التحقق من الوجه على الجهاز
   google_mlkit_face_detection: ^0.13.1
-  tflite_flutter: ^0.11.0
+  tflite_flutter: ^0.12.1
   image: ^4.2.0
 
 dev_dependencies:
