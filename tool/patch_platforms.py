@@ -123,10 +123,20 @@ subprojects {
                 println("Android/JVM target override skipped for ${project.name}: $e")
             }
         }
-        tasks.matching { it.name.startsWith("compile") && it.name.endsWith("Kotlin") }.configureEach { task ->
+        tasks.matching { it.name.startsWith("compile") && it.name.endsWith("Kotlin") }.configureEach {
+            val kotlinTask: Any = this
             try {
-                val opts = task.javaClass.methods.firstOrNull { it.name == "getKotlinOptions" && it.parameterCount == 0 }?.invoke(task)
-                opts?.javaClass?.methods?.firstOrNull { it.name == "setJvmTarget" && it.parameterCount == 1 }?.invoke(opts, "17")
+                val cls = kotlinTask.javaClass
+                val compilerOpts = cls.methods.firstOrNull { it.name == "getCompilerOptions" && it.parameterCount == 0 }?.invoke(kotlinTask)
+                if (compilerOpts != null) {
+                    val jvmTargetProp = compilerOpts.javaClass.methods.firstOrNull { it.name == "getJvmTarget" && it.parameterCount == 0 }?.invoke(compilerOpts)
+                    val jvmTargetEnum = Class.forName("org.jetbrains.kotlin.gradle.dsl.JvmTarget", true, cls.classLoader)
+                    val jvm17 = jvmTargetEnum.getMethod("valueOf", String::class.java).invoke(null, "JVM_17")
+                    Class.forName("org.gradle.api.provider.Property").getMethod("set", Any::class.java).invoke(jvmTargetProp, jvm17)
+                } else {
+                    val opts = cls.methods.firstOrNull { it.name == "getKotlinOptions" && it.parameterCount == 0 }?.invoke(kotlinTask)
+                    opts?.javaClass?.methods?.firstOrNull { it.name == "setJvmTarget" && it.parameterCount == 1 }?.invoke(opts, "17")
+                }
             } catch (e: Exception) { println("Kotlin target override skipped for ${project.name}: $e") }
         }
     }
