@@ -128,7 +128,7 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
     // short-lived authorization required by Firebase rules. Face detection alone
     // must never grant online access.
     try {
-      return await FaceVerifyService.verifyOnlineSelfie(shot);
+      return await FaceVerifyService.verifyOnlineDevice(shot);
     } catch (_) {
       return const FaceVerifyResult('failed', 'service_unavailable');
     }
@@ -166,6 +166,7 @@ class _OnlineFaceCheckScreenState extends State<OnlineFaceCheckScreen> {
             'approved_selfie_missing' => 'لا توجد صورة سيلفي معتمدة. ارفع السيلفي أولًا أو تواصل مع الدعم.',
             'approved_selfie_unreadable' => 'تعذر قراءة صورتك المعتمدة الآن. أعد المحاولة بعد لحظات، وإن تكرر تواصل مع الدعم.',
             'not_configured' => 'خدمة التحقق غير مفعّلة بعد. تواصل مع الدعم.',
+            'bad_request' => 'تعذر إكمال التحقق. أعد المحاولة.',
             'provider_auth' || 'provider_error' => 'خدمة التحقق تعطلت مؤقتًا. أعد المحاولة بعد قليل.',
             'too_many_attempts' => 'كثرت المحاولات. انتظر قليلًا ثم أعد المحاولة أو تواصل مع الدعم.',
             'bad_image' => 'لم تُلتقط الصورة جيدًا. أعد المحاولة.',

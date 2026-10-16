@@ -1,8 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show compute;
-import 'package:image/image.dart' as img;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
@@ -18,15 +15,6 @@ class FaceVerifyResult {
   bool get passed => status == 'preliminary_match' || status == 'verified' || status == 'manual_approved';
 }
 
-
-/// يصغّر الصورة الحية (أقصى عرض 960px، JPEG 85) لتناسب حدود خدمات التعرف على الوجه وتسرّع الإرسال.
-Uint8List _prepareLive(Uint8List bytes) {
-  final decoded = img.decodeImage(bytes);
-  if (decoded == null) return bytes;
-  var im = img.bakeOrientation(decoded);
-  if (im.width > 960) im = img.copyResize(im, width: 960);
-  return Uint8List.fromList(img.encodeJpg(im, quality: 85));
-}
 
 class FaceVerifyService {
   static const _defaults = {'matchThreshold': 0.60, 'reviewThreshold': 0.40};
@@ -111,10 +99,6 @@ class FaceVerifyService {
       'createdAt': ServerValue.timestamp,
     });
 
-    // المقارنة الموثوقة على الخادم (قراءة الصور من R2 مباشرة). إن تعذر الوصول نعتمد النتيجة المبدئية فقط.
-    try {
-      return await runServer();
-    } catch (_) {}
     return FaceVerifyResult(status, reason);
   }
 
@@ -126,39 +110,44 @@ class FaceVerifyService {
     return AppConfig.adminApiBase.replaceAll(RegExp(r'/+$'), '');
   }
 
-  /// مقارنة على الخادم (AWS Rekognition) — اختيارية.
-  static Future<FaceVerifyResult> runServer() async {
-    final base = await _base();
-    if (base.isEmpty) throw Exception('عنوان خادم التحقق غير مضبوط (settings/adminApiUrl).');
-    final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
-    final res = await http
-        .post(Uri.parse('$base/api/driver/face-verify'), headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}, body: '{}')
-        .timeout(const Duration(seconds: 60));
-    final j = jsonDecode(res.body.isEmpty ? '{}' : res.body);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception((j is Map ? j['error'] : null)?.toString() ?? 'تعذر التحقق (HTTP ${res.statusCode})');
-    }
-    return FaceVerifyResult((j['status'] ?? 'review').toString(), j['reason']?.toString());
-  }
+  /// التحقق عند «متصل» بمكتبات فلاتر على الجهاز: الصورة الحية ↔ السيلفي المعتمدة (ليست البطاقة).
+  /// الخادم يسلّم الصورة المعتمدة فقط، ثم يُصدر تصريح الاتصال بعد نجاح المقارنة.
+  static Future<FaceVerifyResult> verifyOnlineDevice(File live) async {
+    final cfg = await _cfg();
+    final matchT = (cfg['matchThreshold'] as num).toDouble(), reviewT = (cfg['reviewThreshold'] as num).toDouble();
+    final liveA = await LocalFaceService.analyze(live.path, isSelfie: true);
+    if (!liveA.ok) return FaceVerifyResult('failed', liveA.reason);
 
-  /// يتحقق الخادم من صورة حية جديدة مقابل صورة السيلفي المعتمدة والمستندات؛ لا تُحفظ الصورة الجديدة.
-  static Future<FaceVerifyResult> verifyOnlineSelfie(File selfie) async {
     final base = await _base();
-    if (base.isEmpty) throw Exception('عنوان خادم التحقق غير مضبوط (settings/adminApiUrl).');
+    if (base.isEmpty) return const FaceVerifyResult('review', 'service_unavailable');
     final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
-    final bytes = await compute(_prepareLive, await selfie.readAsBytes());
-    final encoded = base64Encode(bytes);
-    final res = await http.post(
-      Uri.parse('$base/api/driver/online-face-verify'),
-      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-      body: jsonEncode({'selfieBase64': encoded}),
-    )
-.timeout(const Duration(seconds: 60));
-    final j = jsonDecode(res.body.isEmpty ? '{}' : res.body);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception((j is Map ? j['error'] : null)?.toString() ?? 'تعذر التحقق (HTTP ${res.statusCode})');
+    File? ref;
+    try {
+      final res = await http.get(Uri.parse('$base/api/driver/my-selfie'), headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 30));
+      if (res.statusCode != 200) {
+        String? reason;
+        try { reason = (jsonDecode(res.body) as Map)['reason']?.toString(); } catch (_) {}
+        return FaceVerifyResult('review', reason ?? 'approved_selfie_unreadable');
+      }
+      ref = File('${Directory.systemTemp.path}/approved_selfie_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await ref.writeAsBytes(res.bodyBytes);
+      final refA = await LocalFaceService.analyze(ref.path, isSelfie: false);
+      if (!refA.ok) return FaceVerifyResult('review', refA.reason == 'model_missing' ? 'model_missing' : 'approved_selfie_unreadable');
+      final score = LocalFaceService.cosine(liveA.embedding!, refA.embedding!);
+      if (score < matchT) return FaceVerifyResult('failed', score >= reviewT ? 'borderline' : 'mismatch');
+      final g = await http
+          .post(Uri.parse('$base/api/driver/online-face-grant'),
+              headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+              body: jsonEncode({'score': double.parse(score.toStringAsFixed(3)), 'liveness': true}))
+          .timeout(const Duration(seconds: 30));
+      final j = jsonDecode(g.body.isEmpty ? '{}' : g.body);
+      if (g.statusCode != 200) return FaceVerifyResult('review', (j is Map ? j['error'] : null)?.toString() ?? 'service_unavailable');
+      return FaceVerifyResult((j['status'] ?? 'review').toString(), j['reason']?.toString());
+    } catch (_) {
+      return const FaceVerifyResult('review', 'service_unavailable');
+    } finally {
+      try { await ref?.delete(); } catch (_) {}
     }
-    return FaceVerifyResult((j['status'] ?? 'review').toString(), j['reason']?.toString());
   }
 
   /// هل يُسمح للسائق بالاتصال؟ فقط عند verified (الخادم) أو manual_approved (الإدارة)، أو إيقاف الإلزام.

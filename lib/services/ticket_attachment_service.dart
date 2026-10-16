@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:http/http.dart' as http;
+import 'upload_http.dart';
 
 class TicketAttachmentService {
   static const _extensions = ['jpg','jpeg','png','webp','pdf','doc','docx'];
@@ -32,7 +33,7 @@ class TicketAttachmentService {
     final safeName = file.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
     final key = 'support_${ticketId}_${DateTime.now().microsecondsSinceEpoch}_$safeName';
     final endpoint = Uri.parse('${base.replaceAll(RegExp(r'/+$'), '')}/upload/$key');
-    final response = await http.put(endpoint, headers: {'Authorization':'Bearer $token','Content-Type':mime}, body:bytes).timeout(const Duration(seconds:90));
+    final response = await putFollowingRedirects(endpoint, headers: {'Authorization':'Bearer $token','Content-Type':mime}, body: bytes);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final detail = response.body.trim();
       throw HttpException('فشل رفع المرفق (HTTP ${response.statusCode})${detail.isEmpty ? '' : ': ${detail.substring(0, detail.length > 160 ? 160 : detail.length)}'}');

@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:http/http.dart' as http;
+import 'upload_http.dart';
 
 /// Uploads profile images through the existing Sikka Cloudflare Worker/R2 API.
 /// Worker must accept the `profile` key for authenticated rider and driver accounts.
@@ -20,11 +20,7 @@ class R2UploadService {
     final bytes = await file.readAsBytes();
     if (bytes.isEmpty) throw Exception('ملف الصورة فارغ. اختر صورة أخرى.');
     if (bytes.length > 8 * 1024 * 1024) throw Exception('حجم الصورة أكبر من 8 ميجابايت. اختر صورة أصغر.');
-    final response = await http.put(
-      Uri.parse('$base/upload/profile'),
-      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'image/jpeg', 'X-Sikka-Profile-Role': role},
-      body: bytes,
-    ).timeout(const Duration(seconds: 90));
+    final response = await putFollowingRedirects(Uri.parse('$base/upload/profile'), headers: {'Authorization': 'Bearer $token', 'Content-Type': 'image/jpeg', 'X-Sikka-Profile-Role': role}, body: bytes);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       var detail = response.body.trim().replaceAll(RegExp(r'\s+'), ' ');
       if (detail.length > 180) detail = detail.substring(0, 180);

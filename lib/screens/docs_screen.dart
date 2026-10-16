@@ -12,6 +12,7 @@ import '../services/auth_service.dart';
 import '../widgets/common.dart';
 import 'auth_driver.dart';
 import 'face_verify_screen.dart';
+import '../services/upload_http.dart';
 import 'splash_gate.dart';
 
 const _defaultUploadApi = 'https://sikka.mohamedmini2006.workers.dev'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
@@ -195,9 +196,8 @@ class _DocsScreenState extends State<DocsScreen> {
       final bytes = await x.readAsBytes();
       final type = (x.mimeType != null && x.mimeType!.startsWith('image/')) ? x.mimeType! : 'image/jpeg';
       final endpoint = Uri.parse('${base.trim().replaceAll(RegExp(r'/+$'), '')}/upload/$key');
-      final res = await http.put(endpoint,
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': type},
-          body: bytes).timeout(const Duration(seconds: 90));
+      final res = await putFollowingRedirects(endpoint,
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': type}, body: bytes);
       if (res.statusCode < 200 || res.statusCode >= 300) {
         final detail = res.body.trim().replaceAll(RegExp(r'\s+'), ' ');
         throw HttpException('HTTP ${res.statusCode}${detail.isEmpty ? '' : ': ${detail.substring(0, detail.length > 180 ? 180 : detail.length)}'}');
