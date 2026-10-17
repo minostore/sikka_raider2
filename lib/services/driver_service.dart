@@ -194,6 +194,11 @@ class DriverService {
       avg = (await ratings()).avg;
     } catch (_) {}
     final v = asMap(p['vehicle']);
+    final vehicleImages = <String, String>{};
+    try {
+      final raw = (await db.child('settings/vehicleImages').get()).value;
+      if (raw is Map) raw.forEach((k, val) { if (val is String && val.startsWith('https://')) vehicleImages[k.toString()] = val; });
+    } catch (_) {}
     await _step('كتابة العرض (rides/$rideId/offers)', () => db.child('rides/$rideId/offers/$myUid').set({
           'name': p['name'] ?? '',
           'photoUrl': p['photoUrl'] ?? p['photoURL'] ?? p['avatarUrl'] ?? '',
@@ -202,6 +207,8 @@ class DriverService {
           'trips': (p['tripsCount'] as num?)?.toInt() ?? 0,
           'vehicle': '${v['model'] ?? ''} • ${v['color'] ?? ''}',
           'plate': v['plate'] ?? '',
+          'vehicleColor': v['color'] ?? '',
+          'vehicleImage': v['photoUrl'] ?? (vehicleImages[v['type']?.toString() ?? ''] ?? ''),
           'price': price,
           'etaMin': etaMin,
           'note': note,

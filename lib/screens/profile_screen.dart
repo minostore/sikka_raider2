@@ -110,6 +110,11 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
 
   Future<void> _changePhoto() async {
     if (_uploading) return;
+    // بعد اعتماد الحساب لا يغيّر الكابتن صورته بنفسه؛ التغيير من الإدارة فقط.
+    if (['approved', 'active'].contains((widget.m['status'] ?? '').toString())) {
+      showSnack(context, 'صورتك الشخصية معتمدة ولا يمكن تغييرها من التطبيق. للتغيير تواصل مع الدعم.');
+      return;
+    }
     const white = TextStyle(color: Colors.white, fontWeight: FontWeight.w700);
     final source = await showModalBottomSheet<ImageSource>(
       context: context,

@@ -30,7 +30,7 @@ if "<queries>" not in s:
 mf.write_text(s, encoding="utf-8")
 
 # صلاحيات الإشعارات والخدمة الأمامية
-_extra = ["android.permission.POST_NOTIFICATIONS", "android.permission.VIBRATE", "android.permission.WAKE_LOCK"]
+_extra = ["android.permission.POST_NOTIFICATIONS", "android.permission.VIBRATE", "android.permission.WAKE_LOCK", "android.permission.REQUEST_INSTALL_PACKAGES"]
 if ROLE == "driver":
     _extra += ["android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_LOCATION"]
 s = mf.read_text(encoding="utf-8")

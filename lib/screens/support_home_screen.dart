@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../widgets/common.dart';
+import 'safety_support_screen.dart';
 import 'support_tickets_screen.dart';
 import 'ticket_chat_screen.dart';
 
@@ -121,6 +122,26 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
                 ? const LoadingView()
                 : ListView(padding: const EdgeInsets.all(16), children: [
                     Text(d.intro, style: const TextStyle(color: Colors.grey, height: 1.5)),
+                    FutureBuilder<SafetySupportData?>(
+                      future: SafetySupportData.load(),
+                      builder: (c, sn) {
+                        final x = sn.data;
+                        if (x == null) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Card(
+                            child: ListTile(
+                              leading: x.imageUrl.startsWith('https://')
+                                  ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(x.imageUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.health_and_safety_outlined)))
+                                  : const Icon(Icons.health_and_safety_outlined),
+                              title: Text(x.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                              trailing: const Icon(Icons.chevron_left),
+                              onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => SafetySupportScreen(data: x))),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 14),
                     TextField(
                       onChanged: (v) => setState(() => _q = v.trim()),

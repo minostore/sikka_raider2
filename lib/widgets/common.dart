@@ -1,4 +1,6 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/config.dart';
 import '../core/theme.dart';
 
@@ -142,6 +144,57 @@ class SikkaLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ClipRRect(
         borderRadius: BorderRadius.circular(radius),
-        child: Image.asset(AppConfig.logoAsset, width: size, height: size, fit: BoxFit.cover),
+        child: BrandLogo(width: size, height: size, fit: BoxFit.cover),
+      );
+}
+
+/// شعار التطبيق: يُقرأ من settings/branding/{role}Logo (لوحة التحكم) ويُحفظ آخر رابط محليًا،
+/// وإن لم يوجد أو فشل التحميل يُستخدم الشعار المدمج في التطبيق.
+class BrandLogo extends StatefulWidget {
+  final double width, height;
+  final BoxFit fit;
+  const BrandLogo({super.key, required this.width, required this.height, this.fit = BoxFit.contain});
+  static final ValueNotifier<String> url = ValueNotifier<String>('');
+  static bool _loaded = false;
+  static Future<void> ensureLoaded() async {
+    if (_loaded) return;
+    _loaded = true;
+    final key = 'brand_logo_${AppConfig.role}';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(key) ?? '';
+      if (cached.startsWith('https://')) url.value = cached;
+      final v = (await FirebaseDatabase.instance.ref('settings/branding/${AppConfig.role}Logo').get()).value?.toString() ?? '';
+      if (v.startsWith('https://')) {
+        if (v != cached) await prefs.setString(key, v);
+        url.value = v;
+      } else if (v.isEmpty && cached.isNotEmpty) {
+        await prefs.remove(key);
+        url.value = '';
+      }
+    } catch (_) {
+      _loaded = false;
+    }
+  }
+
+  @override
+  State<BrandLogo> createState() => _BrandLogoState();
+}
+
+class _BrandLogoState extends State<BrandLogo> {
+  @override
+  void initState() {
+    super.initState();
+    BrandLogo.ensureLoaded();
+  }
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<String>(
+        valueListenable: BrandLogo.url,
+        builder: (_, u, __) {
+          final asset = Image.asset(AppConfig.logoAsset, width: widget.width, height: widget.height, fit: widget.fit);
+          if (u.isEmpty) return asset;
+          return Image.network(u, width: widget.width, height: widget.height, fit: widget.fit, errorBuilder: (_, __, ___) => asset);
+        },
       );
 }

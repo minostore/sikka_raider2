@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../widgets/common.dart';
+import 'dues_screen.dart';
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
@@ -67,6 +68,15 @@ class WalletScreen extends StatelessWidget {
           final topups = asMap(m['topups']).entries.map((e) => asMap(e.value)).toList()
             ..sort((a, b) => ((b['createdAt'] as num?) ?? 0).compareTo((a['createdAt'] as num?) ?? 0));
           return ListView(padding: const EdgeInsets.all(14), children: [
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.account_balance_wallet_outlined),
+                title: const Text('العمولة المستحقة للمنصة'),
+                subtitle: const Text('المبلغ المستحق، الحد الأقصى وطرق السداد'),
+                trailing: const Icon(Icons.chevron_left),
+                onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => const DuesScreen())),
+              ),
+            ),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: AppColors.card, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(18)),

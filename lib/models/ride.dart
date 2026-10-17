@@ -21,6 +21,10 @@ class Ride {
   final String? driverPhone;
   final String? vehicle;
   final String? plate;
+  final String? driverPhotoUrl;
+  final String? riderPhotoUrl;
+  final String? vehicleImage;
+  final String? vehicleColor;
   final double driverRating;
   final String? startCode;
   final int? createdAt;
@@ -50,6 +54,10 @@ class Ride {
     this.driverPhone,
     this.vehicle,
     this.plate,
+    this.driverPhotoUrl,
+    this.riderPhotoUrl,
+    this.vehicleImage,
+    this.vehicleColor,
     this.driverRating = 0,
     this.startCode,
     this.createdAt,
@@ -82,6 +90,10 @@ class Ride {
         driverPhone: m['driverPhone']?.toString(),
         vehicle: m['vehicle']?.toString(),
         plate: m['plate']?.toString(),
+        driverPhotoUrl: m['driverPhotoUrl']?.toString(),
+        riderPhotoUrl: m['riderPhotoUrl']?.toString(),
+        vehicleImage: m['vehicleImage']?.toString(),
+        vehicleColor: m['vehicleColor']?.toString(),
         driverRating: numD(m['driverRating']),
         startCode: m['startCode']?.toString(),
         createdAt: m['createdAt'] is int ? m['createdAt'] as int : null,

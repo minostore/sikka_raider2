@@ -17,6 +17,7 @@ import '../widgets/common.dart';
 import 'request_details_screen.dart';
 import 'notifications_screen.dart';
 import 'support_tickets_screen.dart';
+import '../services/finance_service.dart';
 
 class DriverHome extends StatefulWidget {
   const DriverHome({super.key});
@@ -46,6 +47,7 @@ class _DriverHomeState extends State<DriverHome> {
     _expiryTimer = Timer.periodic(const Duration(seconds: 1), (_) { if (mounted && _online) setState(() {}); });
     // تحديد الموقع تلقائياً عند فتح الشاشة (يطلب الإذن عند الحاجة)
     WidgetsBinding.instance.addPostFrameCallback((_) => _locateMe());
+    unawaited(FinanceService.sync());
   }
 
   Future<void> _locateMe() async {
@@ -81,6 +83,14 @@ class _DriverHomeState extends State<DriverHome> {
           if (mounted) setState(() => _busy = false);
           return;
         }
+        try {
+          final blocked = (await db.child('driverFinance/$myUid/blocked').get()).value == true;
+          if (blocked) {
+            if (mounted) showSnack(context, 'استقبال الرحلات متوقف لبلوغ العمولة المستحقة الحد الأقصى. افتح «العمولة المستحقة» للسداد.', error: true);
+            if (mounted) setState(() => _busy = false);
+            return;
+          }
+        } catch (_) {}
         if (!await FaceVerifyService.allowedOnline(myUid)) {
           if (mounted) showSnack(context, 'لا يمكنك الاتصال قبل اعتماد المستندات والتحقق الأولي من الوجه من الإدارة.', error: true);
           if (mounted) setState(() => _busy = false);

@@ -3,6 +3,7 @@ import '../core/config.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../services/auth_service.dart';
+import '../widgets/common.dart';
 
 typedef WidgetResolver = Future<Widget> Function();
 
@@ -41,7 +42,7 @@ class _SplashScreenState extends State<SplashScreen> {
         backgroundColor: AppConfig.logoBg,
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Image.asset(AppConfig.logoAsset, width: 260, height: 260, fit: BoxFit.contain),
+            BrandLogo(width: 260, height: 260, fit: BoxFit.contain),
             const SizedBox(height: 4),
             Text(widget.tagline, style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 32),
@@ -79,7 +80,7 @@ class WelcomeScreen extends StatelessWidget {
               const Spacer(),
               ClipRRect(
                   borderRadius: BorderRadius.circular(28),
-                  child: Image.asset(AppConfig.logoAsset, width: 150, height: 150, fit: BoxFit.cover)),
+                  child: BrandLogo(width: 150, height: 150, fit: BoxFit.cover)),
               const SizedBox(height: 24),
               Text(title,
                   textAlign: TextAlign.center,

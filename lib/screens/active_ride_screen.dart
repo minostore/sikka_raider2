@@ -1,3 +1,4 @@
+import '../services/finance_service.dart';
 import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -113,17 +114,12 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
       } else {
         final fareValue = current['agreedPrice'] ?? current['price'];
         if (fareValue is! num || !fareValue.isFinite || fareValue <= 0) throw StateError('سعر الرحلة غير صالح.');
-        final pct = (await DriverService.commissionPercent()).clamp(0.0, 100.0).toDouble();
         final fare = double.parse(fareValue.toDouble().toStringAsFixed(2));
-        final commission = double.parse((fare * pct / 100).toStringAsFixed(2));
-        // تحديث واحد متعدد الحقول (ذري): الحالة + وقت الإنهاء + العمولة معاً
+        // العمولة تُحسب على الخادم فقط (FinanceService.sync) ولا يكتبها التطبيق.
         await rideRef.update({
           'status': 'completed',
           'completedAt': DateTime.now().millisecondsSinceEpoch,
-          'commissionPercent': pct,
-          'commission': commission,
           'finalPrice': fare,
-          'driverNet': double.parse((fare - commission).toStringAsFixed(2)),
         });
         completed = true;
         completedNow = true;
@@ -144,6 +140,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
       if (completedNow) {
         await safe(() => db.child('drivers/$myUid/tripsCount').runTransaction((v) => Transaction.success(((v as num?) ?? 0).toInt() + 1)));
         await safe(() => RideNotificationService.notifyStatus(rideId: r.id, status: 'completed', riderId: r.riderId, driverId: myUid));
+        unawaited(FinanceService.sync(rideId: r.id));
       }
     }
     if (mounted) setState(() => _busy = false);
@@ -361,7 +358,7 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
                     const SizedBox(height: 10),
                   ],
                   Row(children: [
-                    const CircleAvatar(radius: 24, backgroundColor: AppColors.field, child: Icon(Icons.person, color: _blue)),
+                    CircleAvatar(radius: 24, backgroundColor: AppColors.field, backgroundImage: (r.riderPhotoUrl ?? '').startsWith('http') ? NetworkImage(r.riderPhotoUrl!) : null, child: (r.riderPhotoUrl ?? '').startsWith('http') ? null : const Icon(Icons.person, color: _blue)),
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(r.riderName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
