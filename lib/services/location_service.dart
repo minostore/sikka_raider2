@@ -77,7 +77,7 @@ void showLocationError(BuildContext context, Object e) {
     // ليس خطأ GPS: اعرض السبب الفعلي (مثل رفض صلاحيات Firebase لمسار zones) بدل رسالة مضللة.
     final raw = e.toString().replaceAll(RegExp(r'\s+'), ' ');
     if (raw.contains('permission-denied')) {
-      msg = 'تعذر تحميل مناطق الخدمة: صلاحيات Firebase (مسار zones). انشر قواعد قاعدة البيانات.';
+      msg = 'رفضت قواعد Firebase هذه العملية. انشر آخر قواعد قاعدة البيانات ثم أعد المحاولة.';
     } else if (raw.isNotEmpty) {
       msg = 'تعذر الاتصال: ${raw.length > 140 ? raw.substring(0, 140) : raw}';
     }
