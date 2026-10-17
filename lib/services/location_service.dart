@@ -72,7 +72,16 @@ class LocationService {
 void showLocationError(BuildContext context, Object e) {
   if (!context.mounted) return;
   final le = e is LocationException ? e : null;
-  final msg = le?.message ?? 'تعذر الوصول إلى الموقع.';
+  var msg = le?.message ?? 'تعذر الوصول إلى الموقع.';
+  if (le == null) {
+    // ليس خطأ GPS: اعرض السبب الفعلي (مثل رفض صلاحيات Firebase لمسار zones) بدل رسالة مضللة.
+    final raw = e.toString().replaceAll(RegExp(r'\s+'), ' ');
+    if (raw.contains('permission-denied')) {
+      msg = 'تعذر تحميل مناطق الخدمة: صلاحيات Firebase (مسار zones). انشر قواعد قاعدة البيانات.';
+    } else if (raw.isNotEmpty) {
+      msg = 'تعذر الاتصال: ${raw.length > 140 ? raw.substring(0, 140) : raw}';
+    }
+  }
   SnackBarAction? action;
   if (le?.openLocationSettings ?? false) {
     action = SnackBarAction(label: 'الإعدادات', onPressed: Geolocator.openLocationSettings);
