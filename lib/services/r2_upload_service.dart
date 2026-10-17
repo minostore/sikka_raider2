@@ -29,15 +29,24 @@ class R2UploadService {
               headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
               body: jsonEncode({'size': bytes.length}))
           .timeout(const Duration(seconds: 20));
+      if (r.statusCode != 200) {
+        var msg = 'HTTP ${r.statusCode}';
+        try { msg = (jsonDecode(r.body) as Map)['error']?.toString() ?? msg; } catch (_) {}
+        throw Exception('تعذر تجهيز رفع الصورة: $msg');
+      }
       if (r.statusCode == 200) {
         final j = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
         final up = (j['url'] ?? '').toString(), pub = (j['publicUrl'] ?? '').toString();
         if (up.startsWith('https://') && pub.startsWith('https://')) {
           final put = await putFollowingRedirects(Uri.parse(up), headers: {'Content-Type': 'image/jpeg'}, body: bytes);
           if (put.statusCode >= 200 && put.statusCode < 300) return {'url': pub, 'path': (j['key'] ?? '').toString()};
+          throw Exception('فشل الرفع إلى التخزين (HTTP ${put.statusCode}). تحقق من إعدادات R2 وCORS.');
         }
       }
-    } catch (_) {}
+    } on Exception catch (e) {
+      if (e.toString().contains('تعذر تجهيز') || e.toString().contains('فشل الرفع')) rethrow;
+      throw Exception('تعذر الاتصال بخادم سِكّة. تحقق من الإنترنت.');
+    }
     final response = await putFollowingRedirects(Uri.parse('$base/upload/profile'), headers: {'Authorization': 'Bearer $token', 'Content-Type': 'image/jpeg', 'X-Sikka-Profile-Role': role}, body: bytes);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       var detail = response.body.trim().replaceAll(RegExp(r'\s+'), ' ');

@@ -23,13 +23,18 @@ class DocUploadService {
               headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
               body: jsonEncode({'key': key, 'size': bytes.length}))
           .timeout(const Duration(seconds: 20));
-      if (r.statusCode != 200) return null;
+      if (r.statusCode != 200) {
+        var msg = 'HTTP ${r.statusCode}';
+        try { msg = (jsonDecode(r.body) as Map)['error']?.toString() ?? msg; } catch (_) {}
+        throw Exception('تعذر تجهيز الرفع من خادم سِكّة: $msg');
+      }
       j = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
-    } catch (_) {
-      return null;
+    } on Exception catch (e) {
+      if (e.toString().contains('تعذر تجهيز')) rethrow;
+      throw Exception('تعذر الاتصال بخادم سِكّة ($base). تحقق من الإنترنت وأن اللوحة منشورة على الدومين.');
     }
     final url = (j['url'] ?? '').toString(), objectKey = (j['key'] ?? '').toString();
-    if (!url.startsWith('https://') || objectKey.isEmpty) return null;
+    if (!url.startsWith('https://') || objectKey.isEmpty) throw Exception('رد غير صالح من خادم الرفع.');
     final put = await putFollowingRedirects(Uri.parse(url), headers: {'Content-Type': contentType}, body: bytes);
     if (put.statusCode < 200 || put.statusCode >= 300) {
       throw Exception('فشل الرفع إلى التخزين (HTTP ${put.statusCode}). تحقق من مفاتيح R2 في Vercel.');
