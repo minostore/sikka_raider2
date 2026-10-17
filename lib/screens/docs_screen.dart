@@ -16,7 +16,7 @@ import '../services/upload_http.dart';
 import '../services/doc_upload_service.dart';
 import 'splash_gate.dart';
 
-const _defaultUploadApi = 'https://sikka-eg.online'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
+const _defaultUploadApi = 'https://www.sikka-eg.online'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
 
 /// الأوراق المطلوبة الافتراضية. يمكن للإدارة تعديلها (الاسم/الصورة/الإضافة/الحذف) من لوحة التحكم
 /// ← الأوراق المطلوبة، وتظهر مباشرة في التطبيق عبر settings/requiredDocs.

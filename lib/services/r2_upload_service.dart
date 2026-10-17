@@ -10,7 +10,7 @@ import 'upload_http.dart';
 /// Uploads profile images through the existing Sikka Cloudflare Worker/R2 API.
 /// Worker must accept the `profile` key for authenticated rider and driver accounts.
 class R2UploadService {
-  static const _defaultBase = 'https://sikka-eg.online';
+  static const _defaultBase = 'https://www.sikka-eg.online';
 
   static Future<Map<String, String>> uploadProfileImage({required File file, required String role}) async {
     final user = FirebaseAuth.instance.currentUser;

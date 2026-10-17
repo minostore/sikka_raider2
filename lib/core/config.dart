@@ -17,5 +17,5 @@ class AppConfig {
   static const defaultCenter = LatLng(30.0444, 31.2357);
   static const nearbyRadiusKm = 8.0;
   // الدومين الرسمي للوحة التحكم (رفع المستندات والتحقق من الوجه). احتياطي: Firebase settings/adminApiUrl
-  static const adminApiBase = 'https://sikka-eg.online';
+  static const adminApiBase = 'https://www.sikka-eg.online';
 }
