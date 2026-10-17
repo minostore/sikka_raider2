@@ -9,7 +9,7 @@ import 'upload_http.dart';
 
 class TicketAttachmentService {
   static const _extensions = ['jpg','jpeg','png','webp','pdf','doc','docx'];
-  static const _defaultUploadApi = 'https://sikka.mohamedmini2006.workers.dev';
+  static const _defaultUploadApi = 'https://sikka-eg.online';
 
   static Future<Map<String, dynamic>?> pickAndUpload({required String uid, required String ticketId}) async {
     final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: _extensions, withData: true);

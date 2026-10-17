@@ -24,6 +24,24 @@ IconData _topicIcon(String id) {
       return Icons.person_outline;
     case 'profile':
       return Icons.manage_accounts_outlined;
+    case 'lost':
+      return Icons.help_outline;
+    case 'fare':
+      return Icons.attach_money;
+    case 'driver_issues':
+      return Icons.person_off_outlined;
+    case 'payment':
+      return Icons.payments_outlined;
+    case 'account':
+      return Icons.person_outline;
+    case 'safety':
+      return Icons.health_and_safety_outlined;
+    case 'about':
+      return Icons.info_outline;
+    case 'messages':
+      return Icons.forum_outlined;
+    case 'lost':
+      return Icons.luggage_outlined;
     default:
       return Icons.help_outline;
   }
@@ -31,14 +49,24 @@ IconData _topicIcon(String id) {
 
 List<SupportTopic> _defaultTopics(String role) => role == 'driver'
     ? const [
-        SupportTopic('trips', 'الرحلات', 'استفسار أو مشكلة تخص رحلة أو أرباح.'),
-        SupportTopic('profile', 'تعديل بياناتي', 'تعديل الملف الشخصي أو بيانات المركبة.'),
-        SupportTopic('other', 'أخرى', 'أي موضوع آخر.'),
+        SupportTopic('trips', 'الرحلات والأرباح', 'استفسار أو مشكلة تخص رحلة أو أرباح.'),
+        SupportTopic('fare', 'راجع أجرة رحلتي', 'اعتراض أو استفسار عن أجرة رحلة محددة.'),
+        SupportTopic('lost', 'الأغراض المفقودة', 'عميل ينسى غرضًا في سيارتك؟ بلّغنا للتنسيق.'),
+        SupportTopic('payment', 'المحفظة والدفع', 'شحن الرصيد، العمولة أو مشاكل الدفع.'),
+        SupportTopic('account', 'الحساب والمستندات', 'تعديل الملف الشخصي أو المستندات وبيانات المركبة.'),
+        SupportTopic('safety', 'السلامة والطوارئ', 'بلاغ أو مشكلة تخص سلامتك أثناء الرحلة.'),
+        SupportTopic('about', 'عن سكة وتطبيقها', 'كيف يعمل التطبيق والأسئلة العامة.'),
+        SupportTopic('messages', 'سجل الرسائل', 'مراجعة رسائلك ومحادثاتك مع الدعم.'),
       ]
     : const [
-        SupportTopic('trips', 'الرحلات', 'استفسار أو مشكلة تخص رحلة.'),
-        SupportTopic('driver', 'السائق', 'شكوى أو استفسار عن سائق.'),
-        SupportTopic('other', 'أخرى', 'أي موضوع آخر.'),
+        SupportTopic('lost', 'الأغراض المفقودة', 'نسيت شيئًا في السيارة؟ بلّغنا وسنتواصل مع السائق.'),
+        SupportTopic('fare', 'راجع أجرة رحلتي', 'اعتراض أو استفسار عن أجرة رحلة محددة.'),
+        SupportTopic('driver_issues', 'المشاكل التي يسببها السائق', 'سلوك، تأخير، تغيير المسار أو أي شكوى من سائق.'),
+        SupportTopic('payment', 'الدفع', 'مشاكل المحفظة أو الدفع أو الشحن.'),
+        SupportTopic('account', 'الحساب', 'تعديل البيانات أو مشاكل تسجيل الدخول.'),
+        SupportTopic('safety', 'السلامة والطوارئ', 'أدوات السلامة، جهات الاتصال الموثوقة وبلاغات الطوارئ.'),
+        SupportTopic('about', 'عن سكة وتطبيقها', 'كيف يعمل التطبيق والأسئلة العامة.'),
+        SupportTopic('messages', 'سجل الرسائل', 'مراجعة رسائلك ومحادثاتك مع الدعم والسائقين.'),
       ];
 
 /// صفحة «المساعدة والدعم» كاملة: اختر سبب التواصل ثم اكتب رسالتك.
@@ -50,6 +78,7 @@ class SupportHomeScreen extends StatefulWidget {
 }
 
 class _SupportHomeScreenState extends State<SupportHomeScreen> {
+  String _q = '';
   late final Future<({String title, String intro, List<SupportTopic> topics})> _f = _load();
 
   Future<({String title, String intro, List<SupportTopic> topics})> _load() async {
@@ -93,12 +122,20 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
                 : ListView(padding: const EdgeInsets.all(16), children: [
                     Text(d.intro, style: const TextStyle(color: Colors.grey, height: 1.5)),
                     const SizedBox(height: 14),
-                    for (final t in d.topics)
+                    TextField(
+                      onChanged: (v) => setState(() => _q = v.trim()),
+                      decoration: const InputDecoration(hintText: 'ابحث في مقالات المساعدة', prefixIcon: Icon(Icons.search)),
+                    ),
+                    const SizedBox(height: 14),
+                    for (final t in d.topics.where((t) => _q.isEmpty || t.title.contains(_q) || t.description.contains(_q)))
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(14),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _NewTicketScreen(role: widget.role, topic: t))),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => _NewTicketScreen(role: widget.role, topic: t))),
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(color: AppColors.card, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(14)),
@@ -120,7 +157,7 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
                     OutlinedButton.icon(
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SupportTicketsScreen(role: widget.role))),
                       icon: const Icon(Icons.forum_outlined),
-                      label: const Text('محادثاتي السابقة مع الدعم'),
+                      label: const Text('سجل الرسائل'),
                     ),
                   ]),
           );

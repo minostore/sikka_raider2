@@ -31,6 +31,18 @@ class WalletScreen extends StatelessWidget {
       return;
     }
     try {
+      final maxV = (await FirebaseDatabase.instance.ref('settings/wallet/maxBalance').get()).value;
+      final maxW = maxV is num ? maxV.toDouble() : double.tryParse('${maxV ?? ''}') ?? 0;
+      if (maxW > 0) {
+        final balV = (await FirebaseDatabase.instance.ref('wallets/$uid/balance').get()).value;
+        final bal = balV is num ? balV.toDouble() : double.tryParse('${balV ?? ''}') ?? 0;
+        if (bal + amount > maxW) {
+          if (context.mounted) showSnack(context, 'الحد الأقصى لمحفظة الكابتن ${maxW.toStringAsFixed(0)}. يمكنك شحن ${(maxW - bal).clamp(0, maxW).toStringAsFixed(0)} كحد أقصى الآن.', error: true);
+          return;
+        }
+      }
+    } catch (_) {}
+    try {
       final ref = FirebaseDatabase.instance.ref('wallets/$uid/topups').push();
       await ref.set({'amount': amount, 'status': 'pending', 'createdAt': ServerValue.timestamp});
       if (context.mounted) showSnack(context, 'تم إرسال الطلب وسيتم مراجعته من الإدارة');

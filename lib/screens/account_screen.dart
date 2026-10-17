@@ -11,6 +11,8 @@ import 'notifications_screen.dart';
 import 'support_tickets_screen.dart';
 import 'place_search_screen.dart';
 import 'splash_gate.dart';
+import 'legal_screen.dart';
+import 'support_home_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -94,8 +96,8 @@ class AccountScreen extends StatelessWidget {
             item(Icons.home, 'عنوان المنزل', () => _setPlace(context, uid, 'home'), sub: asMap(places['home'])['address']?.toString()),
             item(Icons.work, 'عنوان العمل', () => _setPlace(context, uid, 'work'), sub: asMap(places['work'])['address']?.toString()),
             item(Icons.notifications_none, 'الإشعارات', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
-            item(Icons.support_agent, 'المساعدة والدعم', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportTicketsScreen(role: 'driver')))),
-            item(Icons.description_outlined, 'الشروط والخصوصية', () => showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('الشروط والخصوصية'), content: const Text('باستخدامك مشوار فأنت توافق على: تقديم بيانات صحيحة، الالتزام بالسعر المتفق عليه مع السائق، احترام السائقين والركاب، وعدم إساءة استخدام التطبيق. نستخدم موقعك أثناء استخدام التطبيق فقط لتحديد الالتقاط وتتبع الرحلة، ولا نشاركه مع أي جهة خارج الرحلة. يمكنك طلب حذف بياناتك عبر الدعم.'), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))]))),
+            item(Icons.support_agent, 'مركز المساعدة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportHomeScreen(role: 'driver')))),
+            item(Icons.description_outlined, 'الشروط والأحكام', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalScreen(role: 'driver')))),
             ListTile(
               leading: const Icon(Icons.logout, color: AppColors.red),
               title: const Text('تسجيل الخروج', style: TextStyle(color: AppColors.red)),

@@ -14,8 +14,6 @@ import '../services/location_service.dart';
 import '../services/zone_service.dart';
 import '../widgets/app_map.dart';
 import '../widgets/common.dart';
-import '../widgets/app_update_banner.dart';
-import 'online_face_check_screen.dart';
 import 'request_details_screen.dart';
 import 'notifications_screen.dart';
 import 'support_tickets_screen.dart';
@@ -88,12 +86,6 @@ class _DriverHomeState extends State<DriverHome> {
           if (mounted) setState(() => _busy = false);
           return;
         }
-        final liveOk = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const OnlineFaceCheckScreen()));
-        if (liveOk != true) {
-          if (mounted) showSnack(context, 'لم يتم التحقق من الوجه؛ لن يتم فتح استقبال الرحلات. يمكنك إعادة المحاولة.', error: true);
-          if (mounted) setState(() => _busy = false);
-          return;
-        }
         final p = await LocationService.current(); // يتحقق من GPS والصلاحيات
         LocationPublisher.position.value = p;
         _moveTo(p);
@@ -104,6 +96,7 @@ class _DriverHomeState extends State<DriverHome> {
           if (mounted) setState(() => _busy = false);
           return;
         }
+        // داخل الزون المحدد: لا نطلب التحقق من الوجه. خارجه نعرض رسالة (لا اتصال خارج الخدمة).
         await LocationPublisher.start();
       } else {
         await LocationPublisher.stop();
@@ -163,7 +156,6 @@ class _DriverHomeState extends State<DriverHome> {
             IconButton(tooltip: 'الإشعارات', icon: const Icon(Icons.notifications_none, color: Colors.white), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
           ])),
           _toggleBar(),
-          const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: AppUpdateBanner(role: 'driver')),
           Expanded(
             flex: 3,
             child: Padding(

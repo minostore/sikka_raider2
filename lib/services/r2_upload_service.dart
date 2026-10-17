@@ -3,12 +3,14 @@ import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:http/http.dart' as http;
+import '../core/config.dart';
 import 'upload_http.dart';
 
 /// Uploads profile images through the existing Sikka Cloudflare Worker/R2 API.
 /// Worker must accept the `profile` key for authenticated rider and driver accounts.
 class R2UploadService {
-  static const _defaultBase = 'https://sikka.mohamedmini2006.workers.dev';
+  static const _defaultBase = 'https://sikka-eg.online';
 
   static Future<Map<String, String>> uploadProfileImage({required File file, required String role}) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -20,6 +22,22 @@ class R2UploadService {
     final bytes = await file.readAsBytes();
     if (bytes.isEmpty) throw Exception('ملف الصورة فارغ. اختر صورة أخرى.');
     if (bytes.length > 8 * 1024 * 1024) throw Exception('حجم الصورة أكبر من 8 ميجابايت. اختر صورة أصغر.');
+    // الطريقة الأساسية: رابط موقّع من خادم لوحة التحكم (الدومين الرسمي) ثم رفع مباشر إلى R2.
+    try {
+      final r = await http
+          .post(Uri.parse('${AppConfig.adminApiBase}/api/user/profile-upload-url'),
+              headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+              body: jsonEncode({'size': bytes.length}))
+          .timeout(const Duration(seconds: 20));
+      if (r.statusCode == 200) {
+        final j = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+        final up = (j['url'] ?? '').toString(), pub = (j['publicUrl'] ?? '').toString();
+        if (up.startsWith('https://') && pub.startsWith('https://')) {
+          final put = await putFollowingRedirects(Uri.parse(up), headers: {'Content-Type': 'image/jpeg'}, body: bytes);
+          if (put.statusCode >= 200 && put.statusCode < 300) return {'url': pub, 'path': (j['key'] ?? '').toString()};
+        }
+      }
+    } catch (_) {}
     final response = await putFollowingRedirects(Uri.parse('$base/upload/profile'), headers: {'Authorization': 'Bearer $token', 'Content-Type': 'image/jpeg', 'X-Sikka-Profile-Role': role}, body: bytes);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       var detail = response.body.trim().replaceAll(RegExp(r'\s+'), ' ');
