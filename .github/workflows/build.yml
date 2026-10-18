@@ -123,12 +123,30 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            printf '%s' "$KEYSTORE_B64" | tr -d '\r\n\t ' | base64 -d > "$RUNNER_TEMP/release.jks" || { echo "::error::سر ANDROID_KEYSTORE_BASE64 ليس base64 صالحًا. أعد إنشاءه بالأمر: base64 -w0 release.jks"; exit 1; }
             export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
-            echo "ANDROID_KEYSTORE_PATH=$ANDROID_KEYSTORE_PATH" >> "$GITHUB_ENV"
-            echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
-            echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+            # فحص الملف وكلمة مرور المخزن واسم المفتاح قبل البناء برسالة واضحة
+            if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" > "$RUNNER_TEMP/ks.txt" 2>&1; then
+              echo "::error::تعذر فتح ملف المفتاح. تحقق أن ANDROID_KEYSTORE_PASSWORD هي كلمة مرور المخزن (store password) وأن ANDROID_KEYSTORE_BASE64 هو الملف كاملًا."
+              exit 1
+            fi
+            if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > /dev/null 2>&1; then
+              echo "::error::اسم المفتاح ANDROID_KEY_ALIAS غير موجود داخل الملف. الأسماء الموجودة:"
+              grep -iE "PrivateKeyEntry|trustedCertEntry" "$RUNNER_TEMP/ks.txt" | sed 's/,.*//' || true
+              exit 1
+            fi
+            # مخزن PKCS12 (الافتراضي في keytool الحديث) يتطلب أن تكون كلمة مرور المفتاح هي نفسها كلمة مرور المخزن
+            if grep -qi "PKCS12" "$RUNNER_TEMP/ks.txt" && [ "$ANDROID_KEY_PASSWORD" != "$ANDROID_KEYSTORE_PASSWORD" ]; then
+              echo "::warning::المخزن من نوع PKCS12؛ سيُستخدم ANDROID_KEYSTORE_PASSWORD ككلمة مرور المفتاح."
+              ANDROID_KEY_PASSWORD="$ANDROID_KEYSTORE_PASSWORD"
+            fi
+            {
+              echo "ANDROID_KEYSTORE_PATH=$ANDROID_KEYSTORE_PATH"
+              echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+              echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+              echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            export ANDROID_KEY_PASSWORD
           fi
           python3 tool/apply_signing.py
       - name: بناء APK

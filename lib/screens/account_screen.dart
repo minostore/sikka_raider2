@@ -97,7 +97,7 @@ class AccountScreen extends StatelessWidget {
             item(Icons.home, 'عنوان المنزل', () => _setPlace(context, uid, 'home'), sub: asMap(places['home'])['address']?.toString()),
             item(Icons.work, 'عنوان العمل', () => _setPlace(context, uid, 'work'), sub: asMap(places['work'])['address']?.toString()),
             item(Icons.notifications_none, 'الإشعارات', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
-            item(Icons.payments_outlined, 'العمولة المستحقة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DuesScreen()))),
+            item(Icons.payments_outlined, 'تحويل أموال (العمولة المستحقة)', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DuesScreen()))),
         item(Icons.support_agent, 'مركز المساعدة', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportHomeScreen(role: 'driver')))),
             item(Icons.description_outlined, 'الشروط والأحكام', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalScreen(role: 'driver')))),
             ListTile(

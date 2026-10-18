@@ -86,7 +86,7 @@ class _DriverHomeState extends State<DriverHome> {
         try {
           final blocked = (await db.child('driverFinance/$myUid/blocked').get()).value == true;
           if (blocked) {
-            if (mounted) showSnack(context, 'استقبال الرحلات متوقف لبلوغ العمولة المستحقة الحد الأقصى. افتح «العمولة المستحقة» للسداد.', error: true);
+            if (mounted) showSnack(context, 'استقبال الرحلات متوقف لبلوغ العمولة المستحقة الحد الأقصى. افتح «المحفظة» واضغط «تحويل أموال» للسداد.', error: true);
             if (mounted) setState(() => _busy = false);
             return;
           }

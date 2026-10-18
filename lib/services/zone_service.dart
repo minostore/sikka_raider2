@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import '../core/config.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
@@ -98,10 +102,31 @@ class ZoneService {
       });
       zones.value = out;
       if (!_firstLoad.isCompleted) _firstLoad.complete();
-    }, onError: (Object err) {
+    }, onError: (Object err) async {
       lastError = err.toString();
+      // قواعد Firebase رفضت القراءة: نجلب المناطق من خادم اللوحة (للقراءة فقط) بدل إيقاف الخدمة.
+      if (await _fetchViaApi()) lastError = null;
       if (!_firstLoad.isCompleted) _firstLoad.complete();
     });
+  }
+
+  static Future<bool> _fetchViaApi() async {
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token == null) return false;
+      final r = await http.get(Uri.parse('${AppConfig.adminApiBase}/api/zones'), headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return false;
+      final j = jsonDecode(r.body);
+      final out = <ServiceZone>[];
+      asMap(j is Map ? j['zones'] : null).forEach((id, v) {
+        final m = asMap(v);
+        out.add(ServiceZone(id, (m['name'] ?? '').toString(), _points(m), _isActive(m['active']), numD(m['surgePercent'])));
+      });
+      zones.value = out;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// ينتظر وصول أول قراءة للمناطق (حتى 8 ثوانٍ) قبل اتخاذ قرار السماح

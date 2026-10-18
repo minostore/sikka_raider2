@@ -38,7 +38,7 @@ class _DuesScreenState extends State<DuesScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('العمولة المستحقة')),
+        appBar: AppBar(title: const Text('تحويل أموال')),
         body: RefreshIndicator(
           onRefresh: _load,
           child: _error != null

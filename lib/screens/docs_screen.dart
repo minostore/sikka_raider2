@@ -15,6 +15,7 @@ import 'face_verify_screen.dart';
 import '../services/upload_http.dart';
 import '../services/doc_upload_service.dart';
 import 'splash_gate.dart';
+import '../services/r2_upload_service.dart';
 
 const _defaultUploadApi = 'https://www.sikka-eg.online'; // خدمة sikka-uploads على Cloudflare (يمكن تغييرها من لوحة التحكم > الإعدادات)
 
@@ -221,6 +222,16 @@ class _DocsScreenState extends State<DocsScreen> {
       final doc = <String, dynamic>{'path': path, 'status': 'pending', 'uploadedAt': ServerValue.timestamp};
       if (returnedUrl != null && returnedUrl.startsWith('https://')) doc['url'] = returnedUrl;
       await FirebaseDatabase.instance.ref('drivers/$_uid/docs/$key').set(doc);
+      if (isSelfie) {
+        // السيلفي المرفوع يصبح صورة الملف الشخصي للكابتن (تُقفل بعد اعتماد الحساب ولا تتغير إلا من الإدارة).
+        try {
+          final up = await R2UploadService.uploadProfileImage(file: File(x.path), role: 'driver');
+          final u = up['url'];
+          if (u != null && u.startsWith('https://')) {
+            await FirebaseDatabase.instance.ref('drivers/$_uid').update({'photoUrl': u, if (up['path'] != null) 'photoPath': up['path']});
+          }
+        } catch (_) {}
+      }
       _localPaths[key] = x.path;
       setState(() => _docs[key] = {'path': path, if (returnedUrl != null) 'url': returnedUrl, 'status': 'pending'});
     } on SocketException {
