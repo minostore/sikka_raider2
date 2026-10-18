@@ -70,7 +70,6 @@ class WalletScreen extends StatelessWidget {
             ..sort((a, b) => ((b['createdAt'] as num?) ?? 0).compareTo((a['createdAt'] as num?) ?? 0));
           return ListView(padding: const EdgeInsets.all(14), children: [
             const _CommissionCard(),
-            ),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: AppColors.card, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(18)),

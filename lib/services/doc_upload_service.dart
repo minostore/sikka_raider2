@@ -22,7 +22,7 @@ class DocUploadService {
           .post(Uri.parse('$base/api/driver/doc-upload-url'),
               headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
               body: jsonEncode({'key': key, 'size': bytes.length}))
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 60));
       if (r.statusCode != 200) {
         var msg = 'HTTP ${r.statusCode}';
         try { msg = (jsonDecode(r.body) as Map)['error']?.toString() ?? msg; } catch (_) {}

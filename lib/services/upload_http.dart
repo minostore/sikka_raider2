@@ -9,7 +9,7 @@ Future<http.Response> putFollowingRedirects(
   Uri uri, {
   required Map<String, String> headers,
   required List<int> body,
-  Duration timeout = const Duration(seconds: 90),
+  Duration timeout = const Duration(minutes: 10),
 }) async {
   final client = http.Client();
   try {

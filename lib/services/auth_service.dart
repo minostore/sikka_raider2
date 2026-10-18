@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'push_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -92,6 +94,22 @@ class AuthService {
     }
   }
 
+  /// يمنع إنشاء أكثر من حساب بنفس رقم الهاتف في التطبيق نفسه (التحقق على خادم اللوحة).
+  /// إن تعذر الوصول للخادم نكمل التسجيل حتى لا يتعطل التطبيق؛ وتبقى قاعدة «بريد/هاتف واحد» في Firebase.
+  static Future<void> _assertPhoneFree(String phone, String role) async {
+    try {
+      final r = await http
+          .post(Uri.parse('${AppConfig.adminApiBase}/api/auth/check-available'),
+              headers: {'Content-Type': 'application/json'}, body: jsonEncode({'phone': normalizePhone(phone), 'role': role}))
+          .timeout(const Duration(seconds: 30));
+      if (r.statusCode == 200 && (jsonDecode(r.body) as Map)['phoneTaken'] == true) {
+        throw AppAuthException('رقم الهاتف هذا مسجّل مسبقًا في التطبيق. سجّل الدخول بدلًا من إنشاء حساب جديد.');
+      }
+    } on AppAuthException {
+      rethrow;
+    } catch (_) {}
+  }
+
   static Future<void> register({
     required String name,
     required String phone,
@@ -102,6 +120,7 @@ class AuthService {
     String? lastName,
   }) async {
     final role = AppConfig.role;
+    await _assertPhoneFree(phone, role);
     // الراكب: البريد (بعد العزل) هو هوية الدخول. السائق: رقم الجوال على نطاق السائقين.
     final loginEmail = (role == 'rider' && email.contains('@')) ? _roleAlias(email, role) : _phoneEmail(phone);
     final cred = await _auth.createUserWithEmailAndPassword(email: loginEmail, password: password);
