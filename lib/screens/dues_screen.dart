@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../core/utils.dart';
 import '../services/finance_service.dart';
-import '../widgets/common.dart';
 
 /// العمولة المستحقة للمنصة، الحد الأقصى، وطرق السداد. التأكيد النهائي يتم من لوحة التحكم فقط.
 class DuesScreen extends StatefulWidget {
@@ -119,7 +118,7 @@ class _DuesScreenState extends State<DuesScreen> {
 
   Widget _banner(IconData icon, Color c, String title, String body) => Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: c.withOpacity(.12), borderRadius: BorderRadius.circular(14), border: Border.all(color: c)),
+        decoration: BoxDecoration(color: c.withValues(alpha: .12), borderRadius: BorderRadius.circular(14), border: Border.all(color: c)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, color: c),
           const SizedBox(width: 10),

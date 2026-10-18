@@ -28,7 +28,10 @@ dependencies:
   geocoding: ^4.0.0
   http: ^1.2.2
   url_launcher: ^6.3.1
-  ota_update: ^6.0.0
+  open_filex: ^4.7.0
+  path_provider: ^2.1.5
+  crypto: ^3.0.6
+  convert: ^3.1.2
   share_plus: ^11.0.0
   flutter_local_notifications: 19.3.0
   firebase_messaging: ^16.0.0

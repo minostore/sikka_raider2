@@ -1,9 +1,12 @@
-import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:ota_update/ota_update.dart';
+import 'package:convert/convert.dart' show AccumulatorSink;
+import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -21,15 +24,9 @@ class UpdateGate extends StatefulWidget {
 
 class _UpdateGateState extends State<UpdateGate> {
   String? _skipped;
-  StreamSubscription<OtaEvent>? _ota;
+  bool _downloading = false;
   double? _progress; // null = لم يبدأ التنزيل
   String _otaMsg = '';
-
-  @override
-  void dispose() {
-    _ota?.cancel();
-    super.dispose();
-  }
 
   bool _isApk(Map<String, dynamic> u, String url) {
     final name = (u['fileName'] ?? '').toString().toLowerCase();
@@ -38,53 +35,57 @@ class _UpdateGateState extends State<UpdateGate> {
   }
 
   /// تنزيل APK داخل التطبيق مع نسبة التقدم ثم فتح شاشة التثبيت. يطلب أندرويد موافقة المستخدم
-  /// على «تثبيت التطبيقات غير المعروفة» لهذا التطبيق، ولا يمكن تجاوز ذلك. التحديث يجب أن يكون
-  /// موقّعًا بنفس مفتاح النسخة المثبتة وإلا يرفضه النظام.
-  void _install(Map<String, dynamic> u, String url, String version) {
-    if (_ota != null) return;
-    setState(() { _progress = 0; _otaMsg = 'جارٍ التنزيل…'; });
-    final sha = (u['sha256'] ?? '').toString();
+  /// على «تثبيت التطبيقات غير المعروفة» لهذا التطبيق ولا يمكن تجاوز ذلك. التحديث يجب أن يكون
+  /// موقّعًا بنفس مفتاح النسخة المثبتة وإلا يرفضه النظام. إن وُجدت بصمة SHA-256 يُتحقق منها قبل التثبيت.
+  Future<void> _install(Map<String, dynamic> u, String url, String version) async {
+    if (_downloading) return;
+    setState(() { _downloading = true; _progress = 0; _otaMsg = 'جارٍ التنزيل…'; });
+    File? file;
+    final client = http.Client();
     try {
-      _ota = OtaUpdate()
-          .execute(url, destinationFilename: 'sikka-${widget.role}-$version.apk', sha256checksum: sha.length == 64 ? sha : null)
-          .listen((e) {
-        if (!mounted) return;
-        final st = e.status.toString().split('.').last;
-        if (st == 'DOWNLOADING') {
-          setState(() { _progress = ((double.tryParse(e.value ?? '0') ?? 0) / 100).clamp(0.0, 1.0).toDouble(); _otaMsg = 'جارٍ التنزيل ${e.value ?? 0}%'; });
-        } else if (st == 'INSTALLING') {
-          setState(() { _progress = 1; _otaMsg = 'اكتمل التنزيل — اضغط «تثبيت» في الشاشة التي ستظهر'; });
-        } else if (st == 'INSTALLATION_DONE') {
-          setState(() => _otaMsg = 'تم التثبيت');
-        } else {
-          final reason = st == 'PERMISSION_NOT_GRANTED_ERROR'
-              ? 'لم تُمنح صلاحية تثبيت التطبيقات. اسمح لهذا التطبيق من إعدادات الهاتف ثم أعد المحاولة.'
-              : st == 'CHECKSUM_ERROR'
-                  ? 'فشل التحقق من سلامة الملف. لا تُثبّت هذا التحديث.'
-                  : st == 'ALREADY_RUNNING_ERROR'
-                      ? 'التنزيل يعمل بالفعل.'
-                      : st == 'CANCELED'
-                          ? 'أُلغي التنزيل.'
-                          : 'تعذر تنزيل أو تثبيت التحديث. تحقق من الإنترنت وأعد المحاولة.';
-          _ota?.cancel();
-          setState(() { _ota = null; _progress = null; _otaMsg = reason; });
+      final dir = await getTemporaryDirectory();
+      file = File('${dir.path}/sikka-${widget.role}-${version.replaceAll(RegExp(r'[^0-9A-Za-z.]'), '_')}.apk');
+      if (await file.exists()) await file.delete();
+      final resp = await client.send(http.Request('GET', Uri.parse(url))).timeout(const Duration(seconds: 30));
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      final total = resp.contentLength ?? 0;
+      var got = 0;
+      final sink = file.openWrite();
+      final out = AccumulatorSink<Digest>();
+      final hasher = sha256.startChunkedConversion(out);
+      try {
+        await for (final chunk in resp.stream) {
+          sink.add(chunk);
+          hasher.add(chunk);
+          got += chunk.length;
+          if (mounted && total > 0) setState(() { _progress = (got / total).clamp(0.0, 1.0).toDouble(); _otaMsg = 'جارٍ التنزيل ${(got * 100 / total).floor()}%'; });
         }
-      }, onError: (_) {
-        if (!mounted) return;
-        _ota?.cancel();
-        setState(() { _ota = null; _progress = null; _otaMsg = 'تعذر تنزيل التحديث. تحقق من الإنترنت وأعد المحاولة.'; });
-      });
+      } finally {
+        await sink.close();
+      }
+      hasher.close();
+      final expected = (u['sha256'] ?? '').toString().toLowerCase();
+      if (expected.length == 64 && out.events.single.toString() != expected) {
+        await file.delete();
+        throw const FormatException('checksum');
+      }
+      if (!mounted) return;
+      setState(() { _progress = 1; _otaMsg = 'اكتمل التنزيل — اضغط «تثبيت» في الشاشة التي ستظهر'; });
+      final r = await OpenFilex.open(file.path, type: 'application/vnd.android.package-archive');
+      if (!mounted) return;
+      if (r.type == ResultType.done) {
+        setState(() { _downloading = false; _otaMsg = 'إن لم تظهر شاشة التثبيت فاسمح لهذا التطبيق بتثبيت التطبيقات من إعدادات الهاتف ثم أعد المحاولة.'; });
+      } else {
+        setState(() { _downloading = false; _progress = null; _otaMsg = 'تعذر فتح شاشة التثبيت. اسمح لهذا التطبيق بتثبيت التطبيقات غير المعروفة من إعدادات الهاتف ثم أعد المحاولة.'; });
+      }
+    } on FormatException {
+      if (mounted) setState(() { _downloading = false; _progress = null; _otaMsg = 'فشل التحقق من سلامة الملف. لا تُثبّت هذا التحديث وأبلغ الدعم.'; });
     } catch (_) {
-      setState(() { _ota = null; _progress = null; _otaMsg = 'تعذر بدء التنزيل.'; });
+      try { if (file != null && await file.exists()) await file.delete(); } catch (_) {}
+      if (mounted) setState(() { _downloading = false; _progress = null; _otaMsg = 'تعذر تنزيل التحديث. تحقق من الإنترنت وأعد المحاولة.'; });
+    } finally {
+      client.close();
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    SharedPreferences.getInstance().then((p) {
-      if (mounted) setState(() => _skipped = p.getString('skipped_update_${widget.role}') ?? '');
-    });
   }
 
   int _cmp(String a, String b) {
@@ -180,8 +181,8 @@ class _UpdateGateState extends State<UpdateGate> {
                             height: 54,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFCC00), foregroundColor: const Color(0xFF061B31), shape: const StadiumBorder(), textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                              onPressed: url.isEmpty || _ota != null ? null : () => (Platform.isAndroid && _isApk(u, url)) ? _install(u, url, version) : _open(url),
-                              child: Text(_ota != null ? 'جارٍ التحديث…' : 'تحديث الآن'),
+                              onPressed: url.isEmpty || _downloading ? null : () => (Platform.isAndroid && _isApk(u, url)) ? _install(u, url, version) : _open(url),
+                              child: Text(_downloading ? 'جارٍ التحديث…' : 'تحديث الآن'),
                             ),
                           ),
                         ]),
