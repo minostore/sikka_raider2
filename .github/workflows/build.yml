@@ -122,12 +122,24 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          # تنظيف الأسرار من أسطر/مسافات زائدة (سبب شائع لخطأ "Failed to read key")
+          ANDROID_KEY_ALIAS="$(printf '%s' "$ANDROID_KEY_ALIAS" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          ANDROID_KEYSTORE_PASSWORD="$(printf '%s' "$ANDROID_KEYSTORE_PASSWORD" | tr -d '\r\n')"
+          ANDROID_KEY_PASSWORD="$(printf '%s' "$ANDROID_KEY_PASSWORD" | tr -d '\r\n')"
+          [ -z "$ANDROID_KEY_PASSWORD" ] && ANDROID_KEY_PASSWORD="$ANDROID_KEYSTORE_PASSWORD"
+          export ANDROID_KEY_ALIAS ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_PASSWORD
           if [ -n "$KEYSTORE_B64" ]; then
             printf '%s' "$KEYSTORE_B64" | tr -d '\r\n\t ' | base64 -d > "$RUNNER_TEMP/release.jks" || { echo "::error::سر ANDROID_KEYSTORE_BASE64 ليس base64 صالحًا. أعد إنشاءه بالأمر: base64 -w0 release.jks"; exit 1; }
             export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
             # فحص الملف وكلمة مرور المخزن واسم المفتاح قبل البناء برسالة واضحة
             if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" > "$RUNNER_TEMP/ks.txt" 2>&1; then
               echo "::error::تعذر فتح ملف المفتاح. تحقق أن ANDROID_KEYSTORE_PASSWORD هي كلمة مرور المخزن (store password) وأن ANDROID_KEYSTORE_BASE64 هو الملف كاملًا."
+              echo "--- تشخيص آمن (لا يكشف أي قيمة سرية) ---"
+              echo "طول نص ANDROID_KEYSTORE_BASE64: $(printf '%s' "$KEYSTORE_B64" | tr -d '\r\n\t ' | wc -c) حرف"
+              echo "حجم الملف بعد فك الترميز: $(stat -c%s "$ANDROID_KEYSTORE_PATH") بايت"
+              echo "طول ANDROID_KEYSTORE_PASSWORD: ${#ANDROID_KEYSTORE_PASSWORD} حرف"
+              echo "طول ANDROID_KEY_ALIAS: ${#ANDROID_KEY_ALIAS} حرف"
+              echo "رد keytool:"; sed -n '1,4p' "$RUNNER_TEMP/ks.txt" | sed 's/'"$ANDROID_KEYSTORE_PASSWORD"'/***/g'
               exit 1
             fi
             if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > /dev/null 2>&1; then
