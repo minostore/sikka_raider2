@@ -199,6 +199,14 @@ class DriverService {
       final raw = (await db.child('settings/vehicleImages').get()).value;
       if (raw is Map) raw.forEach((k, val) { if (val is String && val.startsWith('https://')) vehicleImages[k.toString()] = val; });
     } catch (_) {}
+    try {
+      final blocked = (await db.child('driverFinance/$myUid/blocked').get()).value == true;
+      if (blocked) {
+        throw Exception('استقبال الرحلات متوقف لبلوغ عمولة المنصة الحد الأقصى. افتح «المحفظة» واضغط «تحويل أموال» ثم انتظر تأكيد المسؤول.');
+      }
+    } on Exception catch (e) {
+      if (e.toString().contains('استقبال الرحلات متوقف')) rethrow;
+    }
     await _step('كتابة العرض (rides/$rideId/offers)', () => db.child('rides/$rideId/offers/$myUid').set({
           'name': p['name'] ?? '',
           'photoUrl': p['photoUrl'] ?? p['photoURL'] ?? p['avatarUrl'] ?? '',
