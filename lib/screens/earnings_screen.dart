@@ -4,6 +4,7 @@ import '../core/theme.dart';
 import '../core/utils.dart';
 import '../models/ride.dart';
 import '../services/driver_service.dart';
+import '../widgets/commission_card.dart';
 import '../widgets/common.dart';
 
 class EarningsScreen extends StatefulWidget {
@@ -160,6 +161,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
                   ]),
                 ),
                 const SizedBox(height: 14),
+                const SizedBox(height: 4),
+                const CommissionCard(),
                 AppButton('طلب تحويل الأرباح', onPressed: done.isNotEmpty ? _payout : null),
               ]),
             );

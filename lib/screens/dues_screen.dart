@@ -17,54 +17,10 @@ class DuesScreen extends StatefulWidget {
 class _DuesScreenState extends State<DuesScreen> {
   DriverFinance? _f;
   String? _error;
-  final _amount = TextEditingController();
-  final _from = TextEditingController();
-  int _to = 0;
-  File? _proof;
-  bool _sending = false;
-
   @override
   void initState() {
     super.initState();
     _load();
-  }
-
-  @override
-  void dispose() {
-    _amount.dispose();
-    _from.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickProof() async {
-    final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 1600);
-    if (x != null && mounted) setState(() => _proof = File(x.path));
-  }
-
-  Future<void> _send(DriverFinance f) async {
-    final amount = double.tryParse(_amount.text.trim().replaceAll(',', '.')) ?? 0;
-    if (amount <= 0) return showSnack(context, 'أدخل المبلغ الذي حوّلته', error: true);
-    if (amount > f.due + 0.001) return showSnack(context, 'المبلغ أكبر من العمولة المستحقة (${money(f.due)})', error: true);
-    if (_from.text.trim().length < 8) return showSnack(context, 'أدخل الرقم الذي حوّلت منه', error: true);
-    if (f.methods.isEmpty) return showSnack(context, 'لا توجد أرقام تحويل متاحة. تواصل مع الدعم.', error: true);
-    if (_proof == null) return showSnack(context, 'ارفع لقطة شاشة إثبات الدفع', error: true);
-    final m = f.methods[_to.clamp(0, f.methods.length - 1)];
-    setState(() => _sending = true);
-    try {
-      final proof = await FinanceService.uploadProof(_proof!);
-      await FinanceService.requestTransfer(amount: amount, fromNumber: _from.text.trim(), toNumber: (m['phone'] ?? '').toString(), toName: (m['name'] ?? '').toString(), proof: proof);
-      if (!mounted) return;
-      _amount.clear();
-      _from.clear();
-      setState(() { _proof = null; _sending = false; });
-      showSnack(context, 'تم إرسال الطلب. سيراجعه المسؤول ويؤكد الاستلام.');
-      _load();
-    } catch (e) {
-      if (mounted) {
-        setState(() => _sending = false);
-        showSnack(context, e.toString().replaceFirst('Exception: ', ''), error: true);
-      }
-    }
   }
 
   Future<void> _load() async {
@@ -122,45 +78,25 @@ class _DuesScreenState extends State<DuesScreen> {
                       for (final m in f.methods)
                         Card(
                           child: ListTile(
-                            title: Text((m['name'] ?? '').toString()),
-                            subtitle: Text('${m['phone'] ?? ''}${(m['beneficiary'] ?? '').toString().isEmpty ? '' : '\nالمستفيد: ${m['beneficiary']}'}'),
+                            title: Text((m['name'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
+                            subtitle: Text('${m['phone'] ?? ''}${(m['beneficiary'] ?? '').toString().isEmpty ? '' : '\nالمستفيد: ${m['beneficiary']}'}', textDirection: TextDirection.ltr),
                             isThreeLine: (m['beneficiary'] ?? '').toString().isNotEmpty,
-                            trailing: IconButton(
-                              icon: const Icon(Icons.copy),
-                              onPressed: () {
-                                Clipboard.setData(ClipboardData(text: (m['phone'] ?? '').toString()));
-                                showSnack(context, 'تم نسخ الرقم');
-                              },
+                            trailing: ElevatedButton(
+                              onPressed: f.due > 0
+                                  ? () async {
+                                      await Navigator.push(context, MaterialPageRoute(builder: (_) => TransferScreen(method: m, due: f.due)));
+                                      _load();
+                                    }
+                                  : null,
+                              child: const Text('تحويل'),
                             ),
                           ),
                         ),
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('بعد التحويل أرسل إثبات السداد للدعم. لا يُخصم المبلغ ولا يعود الاستقبال إلا بعد تأكيد المسؤول للاستلام.', style: TextStyle(fontSize: 12)),
+                        child: Text('اضغط «تحويل» بجانب الرقم الذي ستحوّل عليه، ثم أدخل الرقم الذي حوّلت منه وارفع لقطة الإثبات. لا يُخصم المبلغ ولا يعود الاستقبال إلا بعد تأكيد المسؤول للاستلام.', style: TextStyle(fontSize: 12)),
                       ),
                       const SizedBox(height: 8),
-                      if (f.due > 0 && f.methods.isNotEmpty) ...[
-                        const Text('قم بتحويل مبلغ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                        const SizedBox(height: 8),
-                        TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'المبلغ المحوَّل (ج.م)', hintText: f.due.toStringAsFixed(0))),
-                        const SizedBox(height: 8),
-                        const Text('حوّلت إلى أي رقم؟'),
-                        for (var i = 0; i < f.methods.length; i++)
-                          RadioListTile<int>(
-                            dense: true,
-                            value: i,
-                            groupValue: _to,
-                            onChanged: (v) => setState(() => _to = v ?? 0),
-                            title: Text('${f.methods[i]['name'] ?? ''}  ${f.methods[i]['phone'] ?? ''}'),
-                          ),
-                        TextField(controller: _from, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'الرقم الذي حوّلت منه')),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(onPressed: _sending ? null : _pickProof, icon: const Icon(Icons.image_outlined), label: Text(_proof == null ? 'رفع لقطة شاشة إثبات الدفع' : 'تم اختيار اللقطة — اضغط للتغيير')),
-                        if (_proof != null) Padding(padding: const EdgeInsets.only(top: 8), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(_proof!, height: 140, fit: BoxFit.cover))),
-                        const SizedBox(height: 10),
-                        SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _sending ? null : () => _send(f), icon: const Icon(Icons.send), label: Text(_sending ? 'جارٍ الإرسال…' : 'إرسال طلب التحويل'))),
-                        const SizedBox(height: 14),
-                      ],
                       if (f.requests.isNotEmpty) ...[
                         const Text('طلبات التحويل', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                         for (final q in f.requests)
@@ -204,4 +140,102 @@ class _DuesScreenState extends State<DuesScreen> {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: c)), const SizedBox(height: 3), Text(body)])),
         ]),
       );
+}
+
+
+/// شاشة التحويل: تعرض الرقم المحوَّل عليه، وتطلب المبلغ والرقم المحوَّل منه ولقطة إثبات الدفع.
+class TransferScreen extends StatefulWidget {
+  final Map<String, dynamic> method;
+  final double due;
+  const TransferScreen({super.key, required this.method, required this.due});
+  @override
+  State<TransferScreen> createState() => _TransferScreenState();
+}
+
+class _TransferScreenState extends State<TransferScreen> {
+  late final TextEditingController _amount = TextEditingController(text: widget.due.toStringAsFixed(widget.due % 1 == 0 ? 0 : 2));
+  final _from = TextEditingController();
+  File? _proof;
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _from.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickProof() async {
+    final x = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 1600);
+    if (x != null && mounted) setState(() => _proof = File(x.path));
+  }
+
+  Future<void> _send() async {
+    final amount = double.tryParse(_amount.text.trim().replaceAll(',', '.')) ?? 0;
+    if (amount <= 0) return showSnack(context, 'أدخل المبلغ الذي حوّلته', error: true);
+    if (amount > widget.due + 0.001) return showSnack(context, 'المبلغ أكبر من العمولة المستحقة (${money(widget.due)})', error: true);
+    if (_from.text.trim().length < 8) return showSnack(context, 'أدخل الرقم الذي حوّلت منه', error: true);
+    if (_proof == null) return showSnack(context, 'ارفع لقطة شاشة إثبات الدفع', error: true);
+    setState(() => _sending = true);
+    try {
+      final proof = await FinanceService.uploadProof(_proof!);
+      await FinanceService.requestTransfer(
+          amount: amount, fromNumber: _from.text.trim(), toNumber: (widget.method['phone'] ?? '').toString(), toName: (widget.method['name'] ?? '').toString(), proof: proof);
+      if (!mounted) return;
+      showSnack(context, 'تم إرسال الطلب. سيراجعه المسؤول ويؤكد الاستلام.');
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _sending = false);
+        showSnack(context, e.toString().replaceFirst('Exception: ', ''), error: true);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.method;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('تحويل أموال')),
+        body: ListView(padding: const EdgeInsets.all(16), children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(14)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('حوّل المبلغ إلى هذا الرقم', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text((m['name'] ?? '').toString(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+              SelectableText((m['phone'] ?? '').toString(), textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+              if ((m['beneficiary'] ?? '').toString().isNotEmpty) Text('المستفيد: ${m['beneficiary']}'),
+              const SizedBox(height: 4),
+              TextButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: (m['phone'] ?? '').toString()));
+                  showSnack(context, 'تم نسخ الرقم');
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text('نسخ الرقم'),
+              ),
+              Text('العمولة المستحقة: ${money(widget.due)}'),
+            ]),
+          ),
+          const SizedBox(height: 14),
+          TextField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'المبلغ الذي حوّلته (ج.م)')),
+          const SizedBox(height: 10),
+          TextField(controller: _from, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'الرقم الذي حوّلت منه')),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _sending ? null : _pickProof,
+            icon: const Icon(Icons.image_outlined),
+            label: Text(_proof == null ? 'رفع لقطة شاشة إثبات التحويل' : 'تم اختيار اللقطة — اضغط للتغيير'),
+          ),
+          if (_proof != null) Padding(padding: const EdgeInsets.only(top: 8), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(_proof!, height: 180, fit: BoxFit.cover))),
+          const SizedBox(height: 14),
+          SizedBox(width: double.infinity, height: 50, child: ElevatedButton.icon(onPressed: _sending ? null : _send, icon: const Icon(Icons.send), label: Text(_sending ? 'جارٍ الإرسال…' : 'إرسال طلب التحويل'))),
+        ]),
+      ),
+    );
+  }
 }
