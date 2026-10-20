@@ -278,7 +278,6 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> {
             const Text('تم إنهاء الرحلة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             const SizedBox(height: 14),
             Text(money(r.finalPrice), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900)),
-            Text('صافي ربحك: ${money(r.finalPrice - r.commission)}', style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 14),
             Row(children: [
               Expanded(child: _cell('المسافة', '${r.distanceKm.toStringAsFixed(1)} كم')),

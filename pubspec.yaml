@@ -1,7 +1,7 @@
 name: sikka_driver
 description: "Sikka Driver - تطبيق السائق - Flutter (Android + iOS)"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.2.0+3
 
 environment:
   sdk: ^3.6.0

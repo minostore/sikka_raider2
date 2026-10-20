@@ -55,7 +55,7 @@ class CommissionCardState extends State<CommissionCard> {
           const SizedBox(height: 8),
           const Text('تم إيقاف استقبال الرحلات لبلوغ الحد الأقصى. حوّل المبلغ المستحق ثم يؤكد المسؤول الاستلام ليعود الاستقبال.', style: TextStyle(height: 1.5)),
         ],
-        if (f.due > 0) ...[
+        if (f.blocked) ...[
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
